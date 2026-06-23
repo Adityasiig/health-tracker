@@ -1,14 +1,24 @@
 "use client";
 
-import useSWR from "swr";
-import { swrFetcher } from "@/lib/api";
+import { useApiSWR } from "@/lib/use-api-swr";
+// import {} from "@/lib/api";
 import type { ProfileResponse } from "@/lib/api";
 import { motion } from "framer-motion";
 import { Calculator, Flame, Target, Activity, TrendingDown, TrendingUp, Minus } from "lucide-react";
 import { fmt } from "@/lib/utils";
 
 export default function CalculatorsPage() {
-  const { data } = useSWR<ProfileResponse>("/api/profile", swrFetcher);
+  const { data, isLoading } = useApiSWR<ProfileResponse>("/api/profile");
+
+  if (isLoading || data === undefined) {
+    return (
+      <div className="space-y-6 animate-pulse">
+        <div className="h-10 w-72 bg-[rgb(var(--bg-elev))] rounded-lg" />
+        <div className="glass-card h-64" />
+        <div className="glass-card h-72" />
+      </div>
+    );
+  }
 
   if (!data?.profile || !data?.computed) {
     return (

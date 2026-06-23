@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import useSWR from "swr";
-import { swrFetcher, api } from "@/lib/api";
+import { useApiSWR } from "@/lib/use-api-swr";
+import { api } from "@/lib/api";
 import type { ChatMessage } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
 import { Bot, Send, Sparkles, Trash2, User } from "lucide-react";
@@ -15,7 +15,7 @@ const SUGGESTIONS = [
 ];
 
 export default function CoachPage() {
-  const { data: history, mutate } = useSWR<ChatMessage[]>("/api/coach/history", swrFetcher);
+  const { data: history, mutate } = useApiSWR<ChatMessage[]>("/api/coach/history");
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);

@@ -1,7 +1,7 @@
 "use client";
 
-import useSWR from "swr";
-import { swrFetcher, api } from "@/lib/api";
+import { useApiSWR } from "@/lib/use-api-swr";
+import { api } from "@/lib/api";
 import type { DayLog, LogEntry } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sunrise, Sun, Moon, Cookie, X, Plus } from "lucide-react";
@@ -17,7 +17,7 @@ const MEALS = [
 ];
 
 export default function MealsPage() {
-  const { data, mutate } = useSWR<DayLog>("/api/today", swrFetcher);
+  const { data, mutate } = useApiSWR<DayLog>("/api/today");
 
   if (!data) return <div className="space-y-4 animate-pulse">
     {[1,2,3,4].map(i => <div key={i} className="glass-card h-32"/>)}

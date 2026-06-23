@@ -1,7 +1,7 @@
 "use client";
 
-import useSWR from "swr";
-import { swrFetcher } from "@/lib/api";
+import { useApiSWR } from "@/lib/use-api-swr";
+// import {} from "@/lib/api";
 import type {
   ProfileResponse, DayLog, WaterToday, TrendsData,
 } from "@/lib/api";
@@ -13,10 +13,10 @@ import { WelcomeCard } from "@/components/welcome-card";
 import { motion } from "framer-motion";
 
 export default function Dashboard() {
-  const { data: pData } = useSWR<ProfileResponse>("/api/profile", swrFetcher);
-  const { data: today } = useSWR<DayLog>("/api/today", swrFetcher);
-  const { data: water, mutate: mutateWater } = useSWR<WaterToday>("/api/water/today", swrFetcher);
-  const { data: trends } = useSWR<TrendsData>("/api/analytics/trends?days=30", swrFetcher);
+  const { data: pData } = useApiSWR<ProfileResponse>("/api/profile");
+  const { data: today } = useApiSWR<DayLog>("/api/today");
+  const { data: water, mutate: mutateWater } = useApiSWR<WaterToday>("/api/water/today");
+  const { data: trends } = useApiSWR<TrendsData>("/api/analytics/trends?days=30");
 
   const profile = pData?.profile;
   const targets = pData?.computed;

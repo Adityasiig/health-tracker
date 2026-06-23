@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import useSWR from "swr";
-import { swrFetcher, api } from "@/lib/api";
+import { useApiSWR } from "@/lib/use-api-swr";
+import { api } from "@/lib/api";
 import type { ProfileResponse } from "@/lib/api";
 import { motion } from "framer-motion";
 import { User, Save, Check } from "lucide-react";
@@ -27,7 +27,7 @@ const blank: Form = {
 };
 
 export default function ProfilePage() {
-  const { data, mutate } = useSWR<ProfileResponse>("/api/profile", swrFetcher);
+  const { data, mutate } = useApiSWR<ProfileResponse>("/api/profile");
   const [form, setForm] = useState<Form>(blank);
   const [saving, setSaving] = useState(false);
   const [savedFlash, setSavedFlash] = useState(false);

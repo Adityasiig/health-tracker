@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import useSWR from "swr";
-import { swrFetcher } from "@/lib/api";
+import { useApiSWR } from "@/lib/use-api-swr";
+// import {} from "@/lib/api";
 import type { TrendsData, ProfileResponse } from "@/lib/api";
 import { motion } from "framer-motion";
 import {
@@ -16,8 +16,8 @@ type Range = 7 | 30 | 90;
 
 export default function AnalyticsPage() {
   const [days, setDays] = useState<Range>(30);
-  const { data: trends } = useSWR<TrendsData>(`/api/analytics/trends?days=${days}`, swrFetcher);
-  const { data: pData } = useSWR<ProfileResponse>("/api/profile", swrFetcher);
+  const { data: trends } = useApiSWR<TrendsData>(`/api/analytics/trends?days=${days}`);
+  const { data: pData } = useApiSWR<ProfileResponse>("/api/profile");
 
   const targets = pData?.computed?.target;
 
