@@ -3,6 +3,7 @@
  */
 import Link from "next/link";
 import { Activity } from "lucide-react";
+import { BuiltBy } from "@/components/built-by";
 
 export default function AuthLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -22,8 +23,8 @@ export default function AuthLayout({ children }: { children: React.ReactNode }) 
         {children}
       </div>
 
-      <div className="mt-8 text-xs text-[rgb(var(--fg-muted))]">
-        Built on Helios · Next.js 16
+      <div className="mt-8">
+        <BuiltBy />
       </div>
     </div>
   );

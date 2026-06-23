@@ -8,6 +8,7 @@ import {
 import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { UserMenu } from "@/components/user-menu";
+import { BuiltBy } from "@/components/built-by";
 
 const NAV = [
   { href: "/",            label: "Dashboard",      icon: Home },
@@ -108,8 +109,11 @@ function SidebarContent({
         })}
       </nav>
 
-      <div className="p-4 border-t border-[rgb(var(--border))]">
+      <div className="p-4 border-t border-[rgb(var(--border))] space-y-3">
         <UserMenu />
+        <div className="flex justify-center">
+          <BuiltBy />
+        </div>
       </div>
     </>
   );
