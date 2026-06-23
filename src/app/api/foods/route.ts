@@ -4,19 +4,54 @@ import { getServerSupabase, requireUser } from "@/lib/db/server";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
+/** Naive plural-strip: "eggs" → "egg", "potatoes" → "potatoe" (close enough for ILIKE). */
+function stem(w: string): string {
+  if (w.length > 3 && w.endsWith("s")) return w.slice(0, -1);
+  return w;
+}
+
 export async function GET(req: NextRequest) {
   try {
     await requireUser();
     const q = (req.nextUrl.searchParams.get("q") || "").trim().toLowerCase();
     const supabase = await getServerSupabase();
-    let query = supabase.from("foods").select("*");
-    if (q) {
-      query = query.ilike("name", `%${q}%`).limit(50);
-    } else {
-      query = query.order("is_custom", { ascending: false }).order("name").limit(200);
+
+    if (!q) {
+      const { data, error } = await supabase
+        .from("foods")
+        .select("*")
+        .order("is_custom", { ascending: false })
+        .order("name")
+        .limit(200);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      return NextResponse.json(data ?? []);
     }
+
+    // Multi-word search: split into words, stem, AND-match each word against
+    // either the name or any alias. Uses `search_text` generated column when
+    // available (after migration 0005); falls back gracefully if not.
+    const words = q.split(/\s+/).filter((w) => w.length > 0).map(stem);
+
+    let query = supabase.from("foods").select("*");
+    for (const w of words) {
+      // Match against `search_text` (which concatenates name + aliases lowercase).
+      // If the column doesn't exist yet (pre-0005), Supabase falls back to name.
+      query = query.or(
+        `search_text.ilike.%${w}%,name.ilike.%${w}%`
+      );
+    }
+    query = query.limit(50);
+
     const { data, error } = await query;
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (error) {
+      // If search_text column missing, retry against just `name`
+      let fallback = supabase.from("foods").select("*");
+      for (const w of words) fallback = fallback.ilike("name", `%${w}%`);
+      fallback = fallback.limit(50);
+      const { data: d2, error: e2 } = await fallback;
+      if (e2) return NextResponse.json({ error: e2.message }, { status: 500 });
+      return NextResponse.json(d2 ?? []);
+    }
     return NextResponse.json(data ?? []);
   } catch (e) {
     if (e instanceof Response) return e;

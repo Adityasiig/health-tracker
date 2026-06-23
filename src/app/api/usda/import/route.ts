@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSupabase, requireUser } from "@/lib/db/server";
 import { nutrientLookup, type Nutrients } from "@/lib/usda";
+import { inferUnitFromName } from "@/lib/food-units";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -32,7 +33,15 @@ export async function POST(req: NextRequest) {
     const servingUnit = (f.servingSizeUnit ?? "").toLowerCase();
 
     let unit: string, unit_grams: number | null, scale: number, category: string;
-    if (dataType === "Branded" && servingSize && (servingUnit === "g" || servingUnit === "ml")) {
+    const inferred = inferUnitFromName(name);
+
+    if (inferred) {
+      // Common foods get a sensible counting unit (egg=piece, rice=katori, etc.)
+      unit = inferred.unit;
+      unit_grams = inferred.unit_grams;
+      scale = unit_grams / 100;
+      category = (dataType || "usda").toLowerCase().replace(/\s+/g, "_").replace(/[()]/g, "");
+    } else if (dataType === "Branded" && servingSize && (servingUnit === "g" || servingUnit === "ml")) {
       unit = "piece";
       unit_grams = Number(servingSize);
       scale = unit_grams / 100;
