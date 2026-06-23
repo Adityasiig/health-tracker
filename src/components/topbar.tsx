@@ -4,7 +4,7 @@ import { useTheme } from "next-themes";
 import { Moon, Sun, Menu } from "lucide-react";
 import { useEffect, useState } from "react";
 
-export function TopBar() {
+export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -12,7 +12,11 @@ export function TopBar() {
   return (
     <header className="sticky top-0 z-30 backdrop-blur-md bg-[rgb(var(--bg))]/70 border-b border-[rgb(var(--border))]/60">
       <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 h-16">
-        <button className="lg:hidden btn btn-ghost p-2" aria-label="Menu">
+        <button
+          onClick={onMenuClick}
+          className="lg:hidden btn btn-ghost p-2"
+          aria-label="Open menu"
+        >
           <Menu className="w-5 h-5" />
         </button>
         <div className="flex-1" />
