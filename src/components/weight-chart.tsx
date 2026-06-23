@@ -82,7 +82,11 @@ export function WeightChart({ history, goalKg }: { history: Pt[]; goalKg: number
                   border: "1px solid rgb(var(--border))",
                   borderRadius: 12,
                   fontSize: 12,
+                  boxShadow: "0 8px 24px rgb(0 0 0 / 0.25)",
                 }}
+                labelStyle={{ color: "rgb(var(--fg))", fontWeight: 600, marginBottom: 4 }}
+                cursor={{ stroke: "rgb(var(--fg-muted))", strokeOpacity: 0.4, strokeDasharray: "3 3" }}
+                formatter={(v: unknown) => [`${Number(v ?? 0).toFixed(1)} kg`, "Weight"]}
               />
               {goalKg && (
                 <ReferenceLine

@@ -69,7 +69,8 @@ export default function AnalyticsPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--border))" opacity={0.4} vertical={false}/>
               <XAxis dataKey="label" stroke="rgb(var(--fg-muted))" fontSize={11} tickLine={false} axisLine={false}/>
               <YAxis stroke="rgb(var(--fg-muted))" fontSize={11} tickLine={false} axisLine={false}/>
-              <Tooltip contentStyle={tooltipStyle}/>
+              <Tooltip contentStyle={tooltipStyle} cursor={lineCursor}
+                formatter={fmtTip} labelStyle={{ color: "rgb(var(--fg))", fontWeight: 600, marginBottom: 4 }}/>
               {targets && <ReferenceLine y={targets.calories} stroke="#10b981" strokeDasharray="4 4"
                 label={{ value: `Target ${targets.calories}`, fill: "#10b981", fontSize: 10, position: "insideTopRight" }}/>}
               <Area type="monotone" dataKey="kcal" stroke="#f59e0b" strokeWidth={2} fill="url(#cal-fill)" />
@@ -85,7 +86,8 @@ export default function AnalyticsPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--border))" opacity={0.4} vertical={false}/>
               <XAxis dataKey="label" stroke="rgb(var(--fg-muted))" fontSize={11} tickLine={false} axisLine={false}/>
               <YAxis stroke="rgb(var(--fg-muted))" fontSize={11} tickLine={false} axisLine={false}/>
-              <Tooltip contentStyle={tooltipStyle}/>
+              <Tooltip contentStyle={tooltipStyle} cursor={barCursor}
+                formatter={fmtTip} labelStyle={{ color: "rgb(var(--fg))", fontWeight: 600, marginBottom: 4 }}/>
               {targets && <ReferenceLine y={targets.protein_g} stroke="#10b981" strokeDasharray="4 4"
                 label={{ value: `Target ${targets.protein_g}g`, fill: "#10b981", fontSize: 10, position: "insideTopRight" }}/>}
               <Bar dataKey="protein_g" fill="#3b82f6" radius={[8,8,0,0]} />
@@ -101,7 +103,8 @@ export default function AnalyticsPage() {
               <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--border))" opacity={0.4} vertical={false}/>
               <XAxis dataKey="label" stroke="rgb(var(--fg-muted))" fontSize={11} tickLine={false} axisLine={false}/>
               <YAxis stroke="rgb(var(--fg-muted))" fontSize={11} tickLine={false} axisLine={false} domain={["dataMin - 1", "dataMax + 1"]}/>
-              <Tooltip contentStyle={tooltipStyle}/>
+              <Tooltip contentStyle={tooltipStyle} cursor={lineCursor}
+                formatter={fmtTip} labelStyle={{ color: "rgb(var(--fg))", fontWeight: 600, marginBottom: 4 }}/>
               {pData.profile?.goal_weight_kg && (
                 <ReferenceLine y={pData.profile.goal_weight_kg} stroke="#10b981" strokeDasharray="4 4"
                   label={{ value: `Goal ${pData.profile.goal_weight_kg}kg`, fill: "#10b981", fontSize: 10, position: "insideTopRight" }}/>
@@ -121,8 +124,8 @@ export default function AnalyticsPage() {
               <XAxis dataKey="label" stroke="rgb(var(--fg-muted))" fontSize={11} tickLine={false} axisLine={false}/>
               <YAxis stroke="rgb(var(--fg-muted))" fontSize={11} tickLine={false} axisLine={false}
                 tickFormatter={(v) => `${(v/1000).toFixed(1)}L`}/>
-              <Tooltip contentStyle={tooltipStyle}
-                formatter={(v) => [`${(Number(v ?? 0)/1000).toFixed(2)} L`, "Water"]}/>
+              <Tooltip contentStyle={tooltipStyle} cursor={barCursor}
+                formatter={fmtTip} labelStyle={{ color: "rgb(var(--fg))", fontWeight: 600, marginBottom: 4 }}/>
               {pData.profile?.water_goal_ml && (
                 <ReferenceLine y={pData.profile.water_goal_ml} stroke="#10b981" strokeDasharray="4 4"
                   label={{ value: `Goal ${pData.profile.water_goal_ml/1000}L`, fill: "#10b981", fontSize: 10, position: "insideTopRight" }}/>
@@ -141,6 +144,35 @@ const tooltipStyle = {
   border: "1px solid rgb(var(--border))",
   borderRadius: 12,
   fontSize: 12,
+  boxShadow: "0 8px 24px rgb(0 0 0 / 0.25)",
+};
+
+// Subtle hover cursor that fits the dark theme — instead of Recharts' default
+// bright white-ish rectangle. For bars: thin tinted overlay. For lines/areas:
+// just a vertical guide line.
+const barCursor  = { fill: "rgb(var(--fg) / 0.06)", radius: 8 };
+const lineCursor = { stroke: "rgb(var(--fg-muted))", strokeOpacity: 0.4, strokeDasharray: "3 3" };
+
+// Human-friendly labels for tooltip rows (replaces raw column names)
+const PRETTY_LABELS: Record<string, string> = {
+  kcal:      "Calories",
+  protein_g: "Protein",
+  carbs_g:   "Carbs",
+  fat_g:     "Fat",
+  fiber_g:   "Fiber",
+  kg:        "Weight",
+  ml:        "Water",
+};
+
+const labelOf = (k: string) => PRETTY_LABELS[k] ?? k;
+
+const fmtTip = (v: unknown, name: string): [string, string] => {
+  const n = Number(v ?? 0);
+  if (name === "kcal")      return [`${Math.round(n)} kcal`, labelOf(name)];
+  if (name === "kg")        return [`${n.toFixed(1)} kg`,    labelOf(name)];
+  if (name === "ml")        return [`${(n/1000).toFixed(2)} L`, labelOf(name)];
+  if (name.endsWith("_g"))  return [`${n.toFixed(1)} g`,     labelOf(name)];
+  return [String(n), labelOf(name)];
 };
 
 function ChartCard({
