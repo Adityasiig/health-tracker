@@ -3,28 +3,41 @@
 -- =====================================================================
 -- Adds:
 --   * foods.aliases  TEXT[] — alternative names ("besan curry", "chickpea curry")
---   * foods.search_text — generated column with lowercase name + aliases for ILIKE
+--   * foods.search_text — trigger-maintained column for ILIKE matching
 --   * Indian-name aliases on existing seed rows
 --   * 10 new Indian foods (Kadhi, Dhokla, Khichdi, etc.)
+--
+-- NOTE: We use a BEFORE INSERT/UPDATE trigger to keep search_text in sync
+-- rather than a STORED generated column. Postgres requires generated-
+-- column expressions to be strictly IMMUTABLE; even simple `text || text`
+-- via `array_to_string` is rejected by some PG/Supabase configs with
+-- "42P17 generation expression is not immutable". The trigger avoids the
+-- immutability check entirely while giving us the same column shape.
 -- =====================================================================
 
 -- ── 1. New columns ────────────────────────────────────────────────────
 ALTER TABLE foods ADD COLUMN IF NOT EXISTS aliases TEXT[] DEFAULT '{}';
+ALTER TABLE foods ADD COLUMN IF NOT EXISTS search_text TEXT;
 
--- Generated column that concatenates name + flattened aliases.
--- NOTE: We don't LOWER() here because `lower()` is marked STABLE (depends
--- on lc_collate) which Postgres rejects in a STORED generated column
--- ("generation expression is not immutable"). We rely on ILIKE in the
--- search query for case-insensitive matching — same result, no immutability
--- issue.
-ALTER TABLE foods ADD COLUMN IF NOT EXISTS search_text TEXT
-  GENERATED ALWAYS AS (
-    name || ' ' || COALESCE(ARRAY_TO_STRING(aliases, ' '), '')
-  ) STORED;
+-- ── 2. Trigger keeps search_text in sync with name + aliases ──────────
+CREATE OR REPLACE FUNCTION foods_search_text_sync() RETURNS TRIGGER AS $$
+BEGIN
+  NEW.search_text := NEW.name || ' ' || COALESCE(array_to_string(NEW.aliases, ' '), '');
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS foods_search_text_trigger ON foods;
+CREATE TRIGGER foods_search_text_trigger
+  BEFORE INSERT OR UPDATE OF name, aliases ON foods
+  FOR EACH ROW EXECUTE FUNCTION foods_search_text_sync();
+
+-- Backfill the column for existing rows
+UPDATE foods SET search_text = name || ' ' || COALESCE(array_to_string(aliases, ' '), '');
 
 CREATE INDEX IF NOT EXISTS idx_foods_search_text ON foods (search_text);
 
--- ── 2. Aliases for existing Indian foods ──────────────────────────────
+-- ── 3. Aliases for existing Indian foods ──────────────────────────────
 UPDATE foods SET aliases = ARRAY['chickpea curry','chole','chana','kabuli chana'] WHERE name = 'Chana Masala';
 UPDATE foods SET aliases = ARRAY['kidney bean curry','red bean curry','rajma masala'] WHERE name = 'Rajma (kidney bean curry)';
 UPDATE foods SET aliases = ARRAY['yellow lentil','toor dal','arhar dal','dal'] WHERE name = 'Dal Tadka';
@@ -87,7 +100,7 @@ UPDATE foods SET aliases = ARRAY['jilebi','jalebee'] WHERE name = 'Jalebi';
 UPDATE foods SET aliases = ARRAY['rosogolla','rasagolla'] WHERE name = 'Rasgulla';
 UPDATE foods SET aliases = ARRAY['kheer payasam','rice pudding','firni','phirni'] WHERE name = 'Kheer';
 
--- ── 3. New Indian foods that were missing ─────────────────────────────
+-- ── 4. New Indian foods that were missing ─────────────────────────────
 INSERT INTO foods (name, category, unit, unit_grams, kcal, protein_g, carbs_g, fat_g, fiber_g, is_custom, aliases) VALUES
   ('Kadhi', 'dal', 'katori', 200, 180, 8, 16, 9, 1, 0,
     ARRAY['besan curry','yogurt curry','pakora curry','besan kadhi','dahi kadhi']),
