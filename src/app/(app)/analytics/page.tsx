@@ -166,13 +166,14 @@ const PRETTY_LABELS: Record<string, string> = {
 
 const labelOf = (k: string) => PRETTY_LABELS[k] ?? k;
 
-const fmtTip = (v: unknown, name: string): [string, string] => {
+const fmtTip = (v: unknown, name: unknown): [string, string] => {
   const n = Number(v ?? 0);
-  if (name === "kcal")      return [`${Math.round(n)} kcal`, labelOf(name)];
-  if (name === "kg")        return [`${n.toFixed(1)} kg`,    labelOf(name)];
-  if (name === "ml")        return [`${(n/1000).toFixed(2)} L`, labelOf(name)];
-  if (name.endsWith("_g"))  return [`${n.toFixed(1)} g`,     labelOf(name)];
-  return [String(n), labelOf(name)];
+  const key = String(name ?? "");
+  if (key === "kcal")      return [`${Math.round(n)} kcal`, labelOf(key)];
+  if (key === "kg")        return [`${n.toFixed(1)} kg`,    labelOf(key)];
+  if (key === "ml")        return [`${(n/1000).toFixed(2)} L`, labelOf(key)];
+  if (key.endsWith("_g"))  return [`${n.toFixed(1)} g`,     labelOf(key)];
+  return [String(n), labelOf(key)];
 };
 
 function ChartCard({
