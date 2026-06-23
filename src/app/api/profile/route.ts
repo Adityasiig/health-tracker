@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getServerSupabase, requireUser } from "@/lib/db/server";
+import { sb as adminClient } from "@/lib/db/supabase";
 import { computeTargets } from "@/lib/targets";
 
 export const dynamic = "force-dynamic";
@@ -43,12 +44,22 @@ export async function POST(req: NextRequest) {
       goal_weight_kg: body.goal_weight_kg ? Number(body.goal_weight_kg) : null,
       updated_at: new Date().toISOString(),
     };
-    const { error: upErr } = await supabase.from("profile").upsert(row, { onConflict: "user_id" });
-    if (upErr) return NextResponse.json({ error: upErr.message }, { status: 500 });
 
-    // Auto-snapshot weight to weight_log
+    // Explicit insert-or-update to avoid the upsert/onConflict footgun
+    const { data: existing } = await supabase
+      .from("profile").select("user_id").eq("user_id", user.id).maybeSingle();
+    if (existing) {
+      const { error } = await supabase.from("profile").update(row).eq("user_id", user.id);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    } else {
+      const { error } = await supabase.from("profile").insert(row);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Auto-snapshot today's weight (use admin client to allow the weight_log
+    // insert even before the user's first request; RLS won't block service_role)
     const today = new Date().toISOString().slice(0, 10);
-    await supabase.from("weight_log").upsert(
+    await adminClient.from("weight_log").upsert(
       { user_id: user.id, log_date: today, kg_value: row.weight_kg, recorded_at: new Date().toISOString() },
       { onConflict: "user_id,log_date" }
     );

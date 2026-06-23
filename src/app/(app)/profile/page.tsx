@@ -52,14 +52,19 @@ export default function ProfilePage() {
 
   const upd = <K extends keyof Form>(k: K, v: Form[K]) => setForm(f => ({ ...f, [k]: v }));
 
+  const [error, setError] = useState("");
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
+    setError("");
     try {
       await api.post("/api/profile", form);
       mutate();
       setSavedFlash(true);
       setTimeout(() => setSavedFlash(false), 2000);
+    } catch (err) {
+      setError((err as Error).message);
     } finally {
       setSaving(false);
     }
@@ -158,6 +163,12 @@ export default function ProfilePage() {
             </div>
           </Field>
         </Section>
+
+        {error && (
+          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-sm text-red-400">
+            Save failed: {error}
+          </div>
+        )}
 
         <div className="flex justify-end gap-3 pt-2 border-t border-[rgb(var(--border))]/40">
           <button type="submit" disabled={saving} className="btn btn-primary disabled:opacity-50">
