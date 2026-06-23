@@ -13,6 +13,7 @@ import {
   Activity,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { UserMenu } from "@/components/user-menu";
 
 const NAV = [
   { href: "/",            label: "Dashboard",     icon: Home },
@@ -60,11 +61,8 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="p-6 border-t border-[rgb(var(--border))]">
-        <div className="glass-card p-4">
-          <div className="text-xs text-[rgb(var(--fg-muted))] mb-1">Built on Helios</div>
-          <div className="text-xs">v2 · Next.js 16</div>
-        </div>
+      <div className="p-4 border-t border-[rgb(var(--border))]">
+        <UserMenu />
       </div>
     </aside>
   );

@@ -1,24 +1,26 @@
 /**
- * AI Coach context builder. Pulls live state from Supabase to feed
- * into the system prompt, so Groq has full visibility of the user's day.
+ * AI Coach context builder — assembles the live user state into a string
+ * the LLM can reason over. Uses the admin client (bypasses RLS) since
+ * we already authenticated the user in the route handler.
  */
 import { sb } from "@/lib/db/supabase";
 import { computeTargets } from "@/lib/targets";
 
-export async function buildCoachContext(): Promise<string> {
-  const { data: profile } = await sb.from("profile").select("*").eq("id", 1).maybeSingle();
+export async function buildCoachContext(userId: string): Promise<string> {
+  const { data: profile } = await sb
+    .from("profile").select("*").eq("user_id", userId).maybeSingle();
   if (!profile) return "User has not set up their profile yet.";
 
   const targets = computeTargets(profile);
   const today = new Date().toISOString().slice(0, 10);
 
-  // Today's nutrition log
   const { data: rows } = await sb
     .from("log_entries")
     .select(`
       quantity, note,
       food:foods!inner ( name, kcal, protein_g, carbs_g, fat_g, fiber_g )
     `)
+    .eq("user_id", userId)
     .eq("log_date", today);
 
   const totals = { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0, fiber_g: 0 };
@@ -34,14 +36,13 @@ export async function buildCoachContext(): Promise<string> {
     items.push(`${f.name} ×${q}`);
   });
 
-  // Water today
   const { data: water } = await sb
-    .from("water_log").select("ml_amount").eq("log_date", today);
+    .from("water_log").select("ml_amount").eq("user_id", userId).eq("log_date", today);
   const waterMl = (water ?? []).reduce((s, r) => s + Number(r.ml_amount), 0);
 
-  // Last 7 weight entries
   const { data: weights } = await sb
     .from("weight_log").select("log_date, kg_value")
+    .eq("user_id", userId)
     .order("log_date", { ascending: false }).limit(7);
 
   const r1 = (n: number) => Math.round(n * 10) / 10;

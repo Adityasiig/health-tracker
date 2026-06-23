@@ -1,17 +1,24 @@
 import { NextResponse } from "next/server";
-import { sb } from "@/lib/db/supabase";
+import { getServerSupabase, requireUser } from "@/lib/db/server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET() {
-  const today = new Date().toISOString().slice(0, 10);
-  return await dayLog(today);
+  try {
+    await requireUser();
+    const today = new Date().toISOString().slice(0, 10);
+    return await dayLog(today);
+  } catch (e) {
+    if (e instanceof Response) return e;
+    throw e;
+  }
 }
 
 export async function dayLog(date: string) {
-  // Fetch entries joined with food details
-  const { data: rows, error } = await sb
+  // The Server-Supabase client uses the user's JWT — RLS scopes to the current user automatically.
+  const supabase = await getServerSupabase();
+  const { data: rows, error } = await supabase
     .from("log_entries")
     .select(`
       id, log_date, eaten_at, quantity, note, meal_category,
@@ -24,7 +31,6 @@ export async function dayLog(date: string) {
 
   const totals = { kcal: 0, protein_g: 0, carbs_g: 0, fat_g: 0, fiber_g: 0 };
   const entries = (rows ?? []).map((r) => {
-    // PostgREST returns embedded as object OR array of one — normalize
     const food = Array.isArray(r.food) ? r.food[0] : r.food;
     const q = Number(r.quantity);
     const e = {
@@ -50,11 +56,8 @@ export async function dayLog(date: string) {
     totals.fiber_g   += e.fiber_g;
     return e;
   });
-
-  // Round totals to 1 decimal
   (Object.keys(totals) as (keyof typeof totals)[]).forEach(k => {
     totals[k] = Math.round(totals[k] * 10) / 10;
   });
-
   return NextResponse.json({ date, entries, totals });
 }
