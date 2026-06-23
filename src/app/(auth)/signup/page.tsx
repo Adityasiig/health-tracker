@@ -44,6 +44,8 @@ export default function SignupPage() {
       const { data, error } = await supabase.auth.signUp({
         email, password,
         options: {
+          // Explicit redirect URL — guards against Supabase Site URL drift
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
           data: {
             full_name: name,
             age: Number(age),
