@@ -1,9 +1,9 @@
 "use client";
 
 /**
- * "Built by Aditya Singh" pill — small, subtle, links to GitHub.
- * Avatar pulled live from github.com/Adityasiig.png (no config needed,
- * served as a plain <img> not next/image).
+ * "Built by Aditya Singh" pill — uses the app's emerald-teal-blue brand
+ * gradient (same as the "Health" logo + calorie ring + primary buttons)
+ * so it sits cohesively with the rest of the theme.
  */
 export function BuiltBy() {
   return (
@@ -14,7 +14,7 @@ export function BuiltBy() {
       className="inline-flex items-center justify-center gap-2 px-3 py-1.5 rounded-full
                  bg-[rgb(var(--bg))]/40 border border-[rgb(var(--border))]
                  text-[11px] tracking-wide
-                 hover:border-violet-500/40 hover:bg-violet-500/5
+                 hover:border-emerald-500/40 hover:bg-emerald-500/5
                  transition-all duration-200 select-none"
     >
       <span className="text-[rgb(var(--fg-muted))]">Built by</span>
@@ -24,9 +24,9 @@ export function BuiltBy() {
         alt="Aditya Singh"
         width={20}
         height={20}
-        className="rounded-full ring-1 ring-violet-500/30"
+        className="rounded-full ring-1 ring-emerald-500/40"
       />
-      <span className="font-semibold bg-gradient-to-r from-violet-400 to-purple-400 bg-clip-text text-transparent">
+      <span className="font-semibold gradient-text">
         Aditya Singh
       </span>
     </a>
