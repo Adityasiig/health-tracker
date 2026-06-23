@@ -11,11 +11,15 @@
 -- ── 1. New columns ────────────────────────────────────────────────────
 ALTER TABLE foods ADD COLUMN IF NOT EXISTS aliases TEXT[] DEFAULT '{}';
 
--- Generated column that concatenates name + flattened aliases, lowercased.
--- Allows a single ILIKE match across both. Stored so we can index it.
+-- Generated column that concatenates name + flattened aliases.
+-- NOTE: We don't LOWER() here because `lower()` is marked STABLE (depends
+-- on lc_collate) which Postgres rejects in a STORED generated column
+-- ("generation expression is not immutable"). We rely on ILIKE in the
+-- search query for case-insensitive matching — same result, no immutability
+-- issue.
 ALTER TABLE foods ADD COLUMN IF NOT EXISTS search_text TEXT
   GENERATED ALWAYS AS (
-    LOWER(name) || ' ' || COALESCE(LOWER(ARRAY_TO_STRING(aliases, ' ')), '')
+    name || ' ' || COALESCE(ARRAY_TO_STRING(aliases, ' '), '')
   ) STORED;
 
 CREATE INDEX IF NOT EXISTS idx_foods_search_text ON foods (search_text);
