@@ -57,8 +57,9 @@ export async function proxy(req: NextRequest) {
 
 export const config = {
   matcher: [
-    // Run on every request EXCEPT static assets + API routes
-    // (API routes do their own auth check via requireUser())
-    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|css|js)$).*)",
+    // Run on browser-navigated pages only.
+    // Exclude: static assets, /api/* (handlers do their own auth via requireUser()),
+    // /auth/* (callback + logout), Next.js internals.
+    "/((?!api|auth|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|css|js)$).*)",
   ],
 };
