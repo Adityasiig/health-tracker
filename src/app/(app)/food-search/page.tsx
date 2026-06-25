@@ -2,25 +2,42 @@
 
 import { useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Search, Plus, Database, Globe } from "lucide-react";
+import { Search, Plus, Database, Globe, Sparkles } from "lucide-react";
 import { api } from "@/lib/api";
 import type { Food, USDAFood } from "@/lib/api";
 import { fmt } from "@/lib/utils";
 import { LogModal } from "@/components/log-modal";
 
+// Shape returned by /api/food/nlp — already normalised by asLogFood() server-side.
+type NlpFood = {
+  name: string;
+  category: string;
+  unit: string;
+  unit_grams: number | null;
+  kcal: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+  fiber_g: number;
+  source: "nutritionix";
+};
+
 export default function FoodSearchPage() {
   const [q, setQ] = useState("");
   const [localFoods, setLocalFoods] = useState<Food[]>([]);
+  const [nlpFoods, setNlpFoods] = useState<NlpFood[]>([]);
   const [usdaFoods, setUsdaFoods] = useState<USDAFood[]>([]);
   const [loading, setLoading] = useState(false);
+  const [nlpLoading, setNlpLoading] = useState(false);
+  const [nlpError, setNlpError] = useState("");
   const [usdaLoading, setUsdaLoading] = useState(false);
   const [usdaError, setUsdaError] = useState("");
   const [picked, setPicked] = useState<Food | null>(null);
 
   const searchLocal = async (term: string) => {
     setQ(term);
-    setUsdaFoods([]);
-    setUsdaError("");
+    setNlpFoods([]); setNlpError("");
+    setUsdaFoods([]); setUsdaError("");
     if (!term.trim()) { setLocalFoods([]); return; }
     setLoading(true);
     try {
@@ -28,6 +45,56 @@ export default function FoodSearchPage() {
       setLocalFoods(rows);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Nutritionix natural-language. Best for "1 katori dal" / "2 rotis" / "30g paneer".
+  const searchNlp = async () => {
+    if (!q.trim()) return;
+    setNlpLoading(true); setNlpError("");
+    try {
+      const d = await api.get<{ ok: boolean; foods: NlpFood[]; reason?: string; message?: string }>(
+        `/api/food/nlp?q=${encodeURIComponent(q)}`
+      );
+      if (!d.ok) {
+        setNlpError(d.reason === "no_key" ? "Nutritionix not configured." : d.message || "Nutritionix unreachable.");
+        return;
+      }
+      setNlpFoods(d.foods);
+    } catch (err) {
+      setNlpError((err as Error).message);
+    } finally {
+      setNlpLoading(false);
+    }
+  };
+
+  // Import an NLP food into the user's foods table and open the log modal.
+  // Nutritionix names can collide ("1 cup rice" parsed twice → same name), so we
+  // tolerate the 409 duplicate-name response by re-searching local for that name.
+  const importAndPickNlp = async (n: NlpFood) => {
+    try {
+      const r = await api.post<{ id: number; ok: boolean }>("/api/foods", {
+        name: n.name, category: n.category, unit: n.unit, unit_grams: n.unit_grams,
+        kcal: n.kcal, protein_g: n.protein_g, carbs_g: n.carbs_g, fat_g: n.fat_g, fiber_g: n.fiber_g,
+        is_custom: 1,
+      });
+      // Build a Food-shaped object the LogModal can consume directly.
+      setPicked({
+        id: r.id, name: n.name, category: n.category,
+        unit: n.unit, unit_grams: n.unit_grams ?? null,
+        kcal: n.kcal, protein_g: n.protein_g, carbs_g: n.carbs_g,
+        fat_g: n.fat_g, fiber_g: n.fiber_g, is_custom: 1,
+      } as Food);
+    } catch (e) {
+      // Duplicate-name → find existing row and use that
+      const msg = (e as Error).message || "";
+      if (msg.includes("duplicate")) {
+        const rows = await api.get<Food[]>(`/api/foods?q=${encodeURIComponent(n.name)}`);
+        const hit = rows.find(r => r.name === n.name) || rows[0];
+        if (hit) setPicked(hit);
+      } else {
+        throw e;
+      }
     }
   };
 
@@ -55,7 +122,7 @@ export default function FoodSearchPage() {
       <div>
         <h1 className="text-3xl font-bold">Food Search</h1>
         <p className="text-sm text-[rgb(var(--fg-muted))] mt-1">
-          Search 115 curated foods or query the USDA FoodData Central database.
+          Search your foods (IFCT 2017 + curated), parse natural language with Nutritionix, or query USDA.
         </p>
       </div>
 
@@ -93,6 +160,44 @@ export default function FoodSearchPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {localFoods.map((f) => (
                 <FoodCard key={f.id} food={f} onPick={() => setPicked(f)} />
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Nutritionix natural-language */}
+      {q.trim() && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <Sparkles className="w-4 h-4 text-purple-500" />
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-[rgb(var(--fg-muted))]">
+              Natural Language (Nutritionix)
+            </h2>
+            {nlpFoods.length > 0 && (
+              <span className="text-xs text-[rgb(var(--fg-muted))]">· {nlpFoods.length} results</span>
+            )}
+          </div>
+
+          {nlpFoods.length === 0 && !nlpLoading && !nlpError && (
+            <button onClick={searchNlp} className="btn btn-outline w-full">
+              <Sparkles className="w-4 h-4" /> Parse &quot;{q}&quot; with Nutritionix NLP
+            </button>
+          )}
+
+          {nlpLoading && <div className="text-sm text-[rgb(var(--fg-muted))]">Parsing…</div>}
+
+          {nlpError && (
+            <div className="glass-card p-4 border-purple-500/30 text-sm">
+              <div className="text-purple-500">{nlpError}</div>
+              <button onClick={searchNlp} className="btn btn-outline mt-2 text-xs">↻ Retry</button>
+            </div>
+          )}
+
+          {nlpFoods.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {nlpFoods.map((n, i) => (
+                <NlpCard key={`nlp-${i}`} food={n} onPick={() => importAndPickNlp(n)} />
               ))}
             </div>
           )}
@@ -197,6 +302,40 @@ function UsdaCard({ food, onPick }: { food: USDAFood; onPick: () => Promise<void
       </div>
       <div className="text-[10px] text-[rgb(var(--fg-muted))] tabular-nums">
         per 100 g {food.servingSize ? `· serving ${food.servingSize}${food.servingSizeUnit}` : ""}
+      </div>
+      <button
+        disabled={adding}
+        onClick={async () => { setAdding(true); try { await onPick(); } finally { setAdding(false); } }}
+        className="btn btn-primary text-xs disabled:opacity-50"
+      >
+        <Plus className="w-3.5 h-3.5" /> {adding ? "Importing…" : "Import + Log"}
+      </button>
+    </motion.div>
+  );
+}
+
+function NlpCard({ food, onPick }: { food: NlpFood; onPick: () => Promise<void> }) {
+  const [adding, setAdding] = useState(false);
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -2 }}
+      className="glass-card p-4 flex flex-col gap-3 border-purple-500/20"
+    >
+      <div>
+        <div className="font-semibold text-sm">{food.name}</div>
+        <div className="text-xs text-[rgb(var(--fg-muted))]">
+          <span className="text-purple-500">parsed by Nutritionix</span>
+        </div>
+      </div>
+      <div className="grid grid-cols-4 gap-2 text-center">
+        <Stat label="kcal" value={fmt.dec(food.kcal)} cls="text-emerald-500" />
+        <Stat label="P" value={`${fmt.dec(food.protein_g)}g`} cls="text-blue-500" />
+        <Stat label="C" value={`${fmt.dec(food.carbs_g)}g`} cls="text-orange-500" />
+        <Stat label="F" value={`${fmt.dec(food.fat_g)}g`} cls="text-red-500" />
+      </div>
+      <div className="text-[10px] text-[rgb(var(--fg-muted))] tabular-nums">
+        per 1 {food.unit}{food.unit_grams ? ` (${fmt.dec(food.unit_grams)}g)` : ""}
       </div>
       <button
         disabled={adding}
