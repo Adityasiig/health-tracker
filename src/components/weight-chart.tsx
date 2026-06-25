@@ -1,7 +1,9 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { TrendingDown } from "lucide-react";
+import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { TrendingDown, Plus, Check, X } from "lucide-react";
+import { api } from "@/lib/api";
 import {
   ResponsiveContainer,
   LineChart,
@@ -17,7 +19,15 @@ import {
 
 type Pt = { date: string; kg: number };
 
-export function WeightChart({ history, goalKg }: { history: Pt[]; goalKg: number | null }) {
+export function WeightChart({
+  history,
+  goalKg,
+  onLogged,
+}: {
+  history: Pt[];
+  goalKg: number | null;
+  onLogged?: () => void;
+}) {
   const data = history.map((d) => ({
     ...d,
     label: d.date.slice(5), // MM-DD
@@ -26,6 +36,28 @@ export function WeightChart({ history, goalKg }: { history: Pt[]; goalKg: number
   const latest = history[history.length - 1]?.kg;
   const first = history[0]?.kg;
   const delta = latest != null && first != null ? latest - first : 0;
+
+  // Log-weight inline form
+  const [open, setOpen] = useState(false);
+  const [kg, setKg] = useState<string>(latest ? latest.toFixed(1) : "");
+  const [date, setDate] = useState<string>(new Date().toISOString().slice(0, 10));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const submit = async () => {
+    const num = Number(kg);
+    if (!num || num <= 0) { setError("Enter a weight in kg"); return; }
+    setSaving(true); setError("");
+    try {
+      await api.post("/api/weight", { kg_value: num, log_date: date });
+      setOpen(false);
+      onLogged?.();
+    } catch (e) {
+      setError((e as Error).message || "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   return (
     <motion.div
@@ -50,12 +82,76 @@ export function WeightChart({ history, goalKg }: { history: Pt[]; goalKg: number
             )}
           </div>
         )}
+        <button
+          onClick={() => setOpen(o => !o)}
+          className="ml-2 inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 px-2.5 py-1.5 text-xs font-semibold"
+          title="Log today's weight"
+        >
+          <Plus className="w-3.5 h-3.5" /> Log
+        </button>
       </div>
+
+      <AnimatePresence>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="overflow-hidden"
+          >
+            <div className="flex items-end gap-2 mb-4 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
+              <div className="flex-1">
+                <label className="text-[10px] uppercase tracking-wider text-[rgb(var(--fg-muted))]">Weight (kg)</label>
+                <input
+                  type="number"
+                  step="0.1"
+                  inputMode="decimal"
+                  className="input mt-1"
+                  value={kg}
+                  onChange={(e) => setKg(e.target.value)}
+                  placeholder="e.g. 84.7"
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="text-[10px] uppercase tracking-wider text-[rgb(var(--fg-muted))]">Date</label>
+                <input
+                  type="date"
+                  className="input mt-1"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                  max={new Date().toISOString().slice(0, 10)}
+                />
+              </div>
+              <button
+                disabled={saving}
+                onClick={submit}
+                className="btn btn-primary disabled:opacity-50"
+                title="Save weight"
+              >
+                <Check className="w-4 h-4" /> {saving ? "Saving…" : "Save"}
+              </button>
+              <button
+                onClick={() => { setOpen(false); setError(""); }}
+                className="btn btn-outline"
+                title="Cancel"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {error && (
+              <div className="text-xs text-red-500 -mt-2 mb-3 px-1">{error}</div>
+            )}
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {data.length < 2 ? (
         <div className="h-48 flex flex-col items-center justify-center text-[rgb(var(--fg-muted))] text-sm">
           <div>Need at least 2 weigh-ins</div>
-          <div className="text-xs mt-1">Log your weight daily to see your trend.</div>
+          <div className="text-xs mt-1">
+            Tap <span className="text-emerald-500 font-semibold">+ Log</span> above to add today&apos;s weight.
+          </div>
         </div>
       ) : (
         <div className="h-48 -mx-3">

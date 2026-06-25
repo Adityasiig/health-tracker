@@ -16,7 +16,7 @@ export default function Dashboard() {
   const { data: pData } = useApiSWR<ProfileResponse>("/api/profile");
   const { data: today } = useApiSWR<DayLog>("/api/today");
   const { data: water, mutate: mutateWater } = useApiSWR<WaterToday>("/api/water/today");
-  const { data: trends } = useApiSWR<TrendsData>("/api/analytics/trends?days=30");
+  const { data: trends, mutate: mutateTrends } = useApiSWR<TrendsData>("/api/analytics/trends?days=30");
 
   const profile = pData?.profile;
   const targets = pData?.computed;
@@ -71,6 +71,7 @@ export default function Dashboard() {
         <WeightChart
           history={trends?.weight || []}
           goalKg={profile.goal_weight_kg}
+          onLogged={() => mutateTrends()}
         />
       </div>
     </motion.div>
