@@ -1,15 +1,26 @@
-// Nutritionix Natural Language API wrapper.
-// Free dev tier: 200 req/day per app_id. We use the /v2/natural/nutrients
-// endpoint because it accepts strings like "1 katori dal" or "2 rotis" and
-// resolves portion + macros in one call — exactly what the local IFCT/USDA
-// seeds can't do (they're per-100g reference, no NLP).
+// Natural-language food parser — Groq llama-3.3-70b + IFCT seed lookup.
 //
-// Get a free key at https://developer.nutritionix.com/ (no card). Two env vars:
-//   NUTRITIONIX_APP_ID
-//   NUTRITIONIX_APP_KEY
+// (File kept named nutritionix.ts so existing imports / route handler don't
+// break; the function still exposes the same { ok, foods | reason } shape.)
+//
+// Why Groq instead of Nutritionix:
+//   - Already wired (GROQ_API_KEY in env, used by /coach)
+//   - No new account, no 200/day cap, no IP-block surprises
+//   - LLM understands transliterations: "kela" → "Banana", "dahi" → "Curd"
+//   - Macros come from our own IFCT 2017 seed (authoritative Indian data)
+//
+// Flow:
+//   user query → Groq returns JSON {matches:[{food, qty, unit, grams}]}
+//   → fuzzy-lookup each food in foods table
+//   → scale row macros by grams/unit_grams
+//   → return NlpFood[] in the shape the UI already expects.
 
-const NLP_URL = "https://trackapi.nutritionix.com/v2/natural/nutrients";
+import Groq from "groq-sdk";
+import { sb } from "@/lib/db/supabase";
 
+const GROQ_MODEL = process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+
+/** UI-facing shape. Same as before so the route/UI don't change. */
 export type NutritionixFood = {
   food_name: string;
   serving_qty: number;
@@ -27,51 +38,155 @@ export type NutritionixFood = {
 
 export type NlpResult =
   | { ok: true; foods: NutritionixFood[] }
-  | { ok: false; reason: "no_key" | "quota" | "bad_query" | "upstream"; message: string };
+  | { ok: false; reason: "no_key" | "quota" | "bad_query" | "upstream" | "no_match"; message: string };
+
+/** LLM-parsed item before DB lookup. */
+type ParseItem = {
+  food: string;     // canonical English name guess, e.g. "Bengal gram, dal"
+  alias?: string;   // user's raw input ("dal", "kela") for fallback search
+  qty: number;
+  unit: string;
+  grams: number;    // grams of edible portion this qty+unit represents
+};
+
+const SYSTEM_PROMPT = `You parse food log entries into structured items.
+
+Given a phrase like "1 katori dal and 2 chapatis" or "30g paneer" or "kela 2",
+extract each distinct food item the user ate.
+
+Rules:
+- Output a JSON object: {"items": [...]}.
+- Each item is {"food": "<English canonical name>", "alias": "<user's raw word>", "qty": <number>, "unit": "<g | piece | katori | cup | tbsp | tsp | slice | bowl>", "grams": <total edible grams for qty * unit>}.
+- Default unit weights (use these when grams is unknown):
+    1 katori dal/sabzi/curd        = 150 g
+    1 katori cooked rice/pulao     = 180 g
+    1 chapati / roti               = 40 g
+    1 paratha                      = 60 g
+    1 piece bread slice            = 25 g
+    1 cup milk/buttermilk          = 240 g
+    1 cup chai (with milk+sugar)   = 200 g
+    1 medium banana                = 120 g
+    1 medium apple                 = 180 g
+    1 medium egg                   = 50 g
+    1 tbsp ghee/oil/butter         = 14 g
+    1 tsp sugar/salt               = 5 g
+    1 piece samosa                 = 60 g
+    1 piece dosa                   = 90 g
+    1 piece idli                   = 35 g
+- Translate Hindi/regional terms to English: kela=Banana, badam=Almond, aam=Mango,
+  kaju=Cashew, dahi=Curd, dal=Lentil, chawal=Rice, paneer=Paneer, ghee=Ghee,
+  besan=Chickpea flour, atta=Wheat flour, sabzi=Vegetable curry, namak=Salt.
+- Prefer specific IFCT names when obvious: "dal" → "Bengal gram, dal" or "Red gram, dal".
+- If the user gives explicit grams like "30g paneer", set qty=30, unit="g", grams=30.
+- If you cannot identify anything edible, output {"items": []}.
+
+Reply ONLY with the JSON object. No prose, no markdown.`;
 
 export async function nutritionixNlp(query: string): Promise<NlpResult> {
-  const appId  = process.env.NUTRITIONIX_APP_ID;
-  const appKey = process.env.NUTRITIONIX_APP_KEY;
-  if (!appId || !appKey) {
-    return { ok: false, reason: "no_key", message: "Nutritionix not configured" };
+  const apiKey = process.env.GROQ_API_KEY;
+  if (!apiKey) {
+    return { ok: false, reason: "no_key", message: "GROQ_API_KEY missing" };
   }
   const trimmed = query.trim();
   if (!trimmed) return { ok: false, reason: "bad_query", message: "empty query" };
 
-  const res = await fetch(NLP_URL, {
-    method: "POST",
-    headers: {
-      "Content-Type":  "application/json",
-      "x-app-id":      appId,
-      "x-app-key":     appKey,
-      // Optional per-user attribution; helps Nutritionix dashboard
-      "x-remote-user-id": "0",
-    },
-    body: JSON.stringify({ query: trimmed }),
-    // Vercel edge will sometimes cache POST? Force fresh.
-    cache: "no-store",
-  });
-
-  if (res.status === 401 || res.status === 403) {
-    return { ok: false, reason: "no_key", message: "bad credentials" };
-  }
-  if (res.status === 429) {
-    return { ok: false, reason: "quota", message: "Nutritionix daily quota hit" };
-  }
-  if (!res.ok) {
-    const txt = await res.text().catch(() => "");
-    return { ok: false, reason: "upstream", message: `HTTP ${res.status}: ${txt.slice(0, 200)}` };
+  // 1) Ask Groq to parse the phrase
+  let items: ParseItem[];
+  try {
+    const groq = new Groq({ apiKey });
+    const completion = await groq.chat.completions.create({
+      model: GROQ_MODEL,
+      messages: [
+        { role: "system", content: SYSTEM_PROMPT },
+        { role: "user", content: trimmed },
+      ],
+      temperature: 0.1,
+      max_tokens: 600,
+      response_format: { type: "json_object" },
+    });
+    const raw = completion.choices[0]?.message?.content || "{}";
+    const parsed = JSON.parse(raw);
+    items = Array.isArray(parsed?.items) ? parsed.items : [];
+  } catch (e) {
+    return { ok: false, reason: "upstream", message: `Groq parse failed: ${(e as Error).message}` };
   }
 
-  const data = await res.json();
-  const foods: NutritionixFood[] = data.foods ?? [];
-  return { ok: true, foods };
+  if (items.length === 0) {
+    return { ok: false, reason: "no_match", message: "Couldn't recognise a food in that query" };
+  }
+
+  // 2) For each item, find a matching foods row and scale macros
+  const out: NutritionixFood[] = [];
+  for (const it of items) {
+    const row = await findFoodRow(it.food, it.alias);
+    if (!row) continue;
+    // unit_grams on the row is the weight of 1 unit. Per-unit macros / unit_grams = per-gram.
+    // Multiply by item.grams to get the user-portion macros.
+    const perGram = row.unit_grams && row.unit_grams > 0 ? 1 / row.unit_grams : 1 / 100;
+    const grams = Math.max(1, Number(it.grams) || 0);
+    out.push({
+      food_name: `${row.name} (${it.qty} ${it.unit})`,
+      serving_qty: Number(it.qty) || 1,
+      serving_unit: it.unit || "serving",
+      serving_weight_grams: grams,
+      nf_calories:           row.kcal      * perGram * grams,
+      nf_total_fat:          row.fat_g     * perGram * grams,
+      nf_total_carbohydrate: row.carbs_g   * perGram * grams,
+      nf_protein:            row.protein_g * perGram * grams,
+      nf_dietary_fiber:      row.fiber_g   * perGram * grams,
+      nf_sugars: null,
+      nf_sodium: null,
+    });
+  }
+
+  if (out.length === 0) {
+    return { ok: false, reason: "no_match", message: "Parsed the query but no matching food in IFCT/curated seed" };
+  }
+  return { ok: true, foods: out };
 }
 
-/** Convert one Nutritionix food → the shape the Log dialog already accepts. */
+type FoodRow = {
+  name: string; unit_grams: number | null;
+  kcal: number; protein_g: number; carbs_g: number; fat_g: number; fiber_g: number;
+};
+
+/** Two-tier fuzzy search: ILIKE on the LLM's canonical name, then on the alias. */
+async function findFoodRow(canonical: string, alias?: string): Promise<FoodRow | null> {
+  const tryOne = async (term: string) => {
+    const t = term.trim();
+    if (!t) return null;
+    // Exact ILIKE first (catches "Banana", "Almond, dried")
+    const { data: exact } = await sb
+      .from("foods")
+      .select("name, unit_grams, kcal, protein_g, carbs_g, fat_g, fiber_g")
+      .ilike("name", t)
+      .limit(1);
+    if (exact && exact[0]) return exact[0] as FoodRow;
+    // Then prefix match
+    const { data: pref } = await sb
+      .from("foods")
+      .select("name, unit_grams, kcal, protein_g, carbs_g, fat_g, fiber_g")
+      .ilike("name", `${t}%`)
+      .order("is_custom", { ascending: false })
+      .limit(1);
+    if (pref && pref[0]) return pref[0] as FoodRow;
+    // Then contains match
+    const { data: cont } = await sb
+      .from("foods")
+      .select("name, unit_grams, kcal, protein_g, carbs_g, fat_g, fiber_g")
+      .ilike("name", `%${t}%`)
+      .order("is_custom", { ascending: false })
+      .limit(1);
+    return (cont && cont[0]) ? (cont[0] as FoodRow) : null;
+  };
+
+  return (await tryOne(canonical)) || (alias ? await tryOne(alias) : null);
+}
+
+/** Convert one parsed food → the shape the Log dialog already accepts. */
 export function asLogFood(f: NutritionixFood) {
   return {
-    name: `${f.food_name} (${f.serving_qty} ${f.serving_unit})`,
+    name: f.food_name,
     category: "snack",
     unit: f.serving_unit || "serving",
     unit_grams: f.serving_weight_grams ?? null,

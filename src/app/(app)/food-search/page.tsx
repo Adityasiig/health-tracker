@@ -122,7 +122,7 @@ export default function FoodSearchPage() {
       <div>
         <h1 className="text-3xl font-bold">Food Search</h1>
         <p className="text-sm text-[rgb(var(--fg-muted))] mt-1">
-          Search your foods (IFCT 2017 + curated), parse natural language with Nutritionix, or query USDA.
+          Search your foods (IFCT 2017 + curated), parse natural language with AI, or query USDA.
         </p>
       </div>
 
@@ -166,13 +166,13 @@ export default function FoodSearchPage() {
         </div>
       )}
 
-      {/* Nutritionix natural-language */}
+      {/* AI natural-language (Groq + IFCT) */}
       {q.trim() && (
         <div>
           <div className="flex items-center gap-2 mb-3">
             <Sparkles className="w-4 h-4 text-purple-500" />
             <h2 className="text-sm font-semibold uppercase tracking-wider text-[rgb(var(--fg-muted))]">
-              Natural Language (Nutritionix)
+              AI Parser (Groq + IFCT)
             </h2>
             {nlpFoods.length > 0 && (
               <span className="text-xs text-[rgb(var(--fg-muted))]">· {nlpFoods.length} results</span>
@@ -181,7 +181,7 @@ export default function FoodSearchPage() {
 
           {nlpFoods.length === 0 && !nlpLoading && !nlpError && (
             <button onClick={searchNlp} className="btn btn-outline w-full">
-              <Sparkles className="w-4 h-4" /> Parse &quot;{q}&quot; with Nutritionix NLP
+              <Sparkles className="w-4 h-4" /> Parse &quot;{q}&quot; with AI
             </button>
           )}
 
@@ -325,7 +325,7 @@ function NlpCard({ food, onPick }: { food: NlpFood; onPick: () => Promise<void> 
       <div>
         <div className="font-semibold text-sm">{food.name}</div>
         <div className="text-xs text-[rgb(var(--fg-muted))]">
-          <span className="text-purple-500">parsed by Nutritionix</span>
+          <span className="text-purple-500">parsed by AI · macros from IFCT seed</span>
         </div>
       </div>
       <div className="grid grid-cols-4 gap-2 text-center">
