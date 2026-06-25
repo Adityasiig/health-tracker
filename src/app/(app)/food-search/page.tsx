@@ -57,7 +57,11 @@ export default function FoodSearchPage() {
         `/api/food/nlp?q=${encodeURIComponent(q)}`
       );
       if (!d.ok) {
-        setNlpError(d.reason === "no_key" ? "Nutritionix not configured." : d.message || "Nutritionix unreachable.");
+        const friendly = d.reason === "no_key"    ? "AI parser not configured."
+                       : d.reason === "no_match"  ? "AI didn't recognise that. Try USDA below."
+                       : d.reason === "quota"     ? "Quota hit — try again later."
+                       : d.message || "AI parser unreachable.";
+        setNlpError(friendly);
         return;
       }
       setNlpFoods(d.foods);

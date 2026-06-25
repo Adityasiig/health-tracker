@@ -24,10 +24,13 @@ export async function GET(req: NextRequest) {
 
     const result = await nutritionixNlp(q);
     if (!result.ok) {
-      // Don't leak the key-missing detail to the client; just say unavailable
-      const status = result.reason === "no_key"  ? 503
-                   : result.reason === "quota"   ? 429
-                   : result.reason === "bad_query" ? 400 : 502;
+      // no_match is a legit empty result (not an error) — return 200
+      // so the UI can show a friendly "no match, try USDA" message.
+      const status = result.reason === "no_key"     ? 503
+                   : result.reason === "quota"      ? 429
+                   : result.reason === "bad_query"  ? 400
+                   : result.reason === "no_match"   ? 200
+                   : 502;
       return NextResponse.json(
         { ok: false, reason: result.reason, message: result.message },
         { status }

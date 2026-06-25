@@ -47,17 +47,39 @@ type ParseItem = {
   qty: number;
   unit: string;
   grams: number;    // grams of edible portion this qty+unit represents
+  // LLM-estimated macros for the ENTIRE portion (qty+unit). Used as a fallback
+  // when no row in the foods table matches — IFCT is raw Indian foods only, so
+  // composite/Western dishes like "chicken wrap" never match but the LLM knows
+  // their macros from training data.
+  kcal_est?: number;
+  protein_g_est?: number;
+  carbs_g_est?: number;
+  fat_g_est?: number;
+  fiber_g_est?: number;
 };
 
-const SYSTEM_PROMPT = `You parse food log entries into structured items.
+const SYSTEM_PROMPT = `You parse food log entries into structured items AND estimate their macros.
 
-Given a phrase like "1 katori dal and 2 chapatis" or "30g paneer" or "kela 2",
-extract each distinct food item the user ate.
+Given a phrase like "1 katori dal and 2 chapatis" or "30g paneer" or "chicken wrap",
+extract each distinct food item the user ate AND give per-portion macro estimates.
 
 Rules:
 - Output a JSON object: {"items": [...]}.
-- Each item is {"food": "<English canonical name>", "alias": "<user's raw word>", "qty": <number>, "unit": "<g | piece | katori | cup | tbsp | tsp | slice | bowl>", "grams": <total edible grams for qty * unit>}.
-- Default unit weights (use these when grams is unknown):
+- Each item shape:
+    {
+      "food": "<English canonical name>",
+      "alias": "<user's raw word, optional>",
+      "qty": <number>,
+      "unit": "<g | piece | katori | cup | tbsp | tsp | slice | bowl>",
+      "grams": <total edible grams for qty * unit>,
+      "kcal_est":      <kcal for the ENTIRE portion above>,
+      "protein_g_est": <protein g for the entire portion>,
+      "carbs_g_est":   <carbs g for the entire portion>,
+      "fat_g_est":     <fat g for the entire portion>,
+      "fiber_g_est":   <fibre g for the entire portion>
+    }
+- Macros are estimates for the WHOLE portion (qty*unit), not per-100g.
+- Default unit weights:
     1 katori dal/sabzi/curd        = 150 g
     1 katori cooked rice/pulao     = 180 g
     1 chapati / roti               = 40 g
@@ -73,10 +95,17 @@ Rules:
     1 piece samosa                 = 60 g
     1 piece dosa                   = 90 g
     1 piece idli                   = 35 g
-- Translate Hindi/regional terms to English: kela=Banana, badam=Almond, aam=Mango,
-  kaju=Cashew, dahi=Curd, dal=Lentil, chawal=Rice, paneer=Paneer, ghee=Ghee,
-  besan=Chickpea flour, atta=Wheat flour, sabzi=Vegetable curry, namak=Salt.
+    1 chicken wrap                 = 250 g
+    1 sandwich                     = 200 g
+    1 pizza slice                  = 110 g
+    1 burger                       = 250 g
+- Translate Hindi/regional terms: kela=Banana, badam=Almond, aam=Mango, kaju=Cashew,
+  dahi=Curd, dal=Lentil, chawal=Rice, paneer=Paneer, ghee=Ghee, besan=Chickpea flour,
+  atta=Wheat flour, sabzi=Vegetable curry, namak=Salt.
 - Prefer specific IFCT names when obvious: "dal" → "Bengal gram, dal" or "Red gram, dal".
+- For composite/Western dishes (chicken wrap, sandwich, pizza, burger, pasta), still
+  estimate macros from your training data — the user will see your numbers as a fallback
+  when the local Indian food DB has no match.
 - If the user gives explicit grams like "30g paneer", set qty=30, unit="g", grams=30.
 - If you cannot identify anything edible, output {"items": []}.
 
@@ -115,32 +144,48 @@ export async function nutritionixNlp(query: string): Promise<NlpResult> {
     return { ok: false, reason: "no_match", message: "Couldn't recognise a food in that query" };
   }
 
-  // 2) For each item, find a matching foods row and scale macros
+  // 2) For each item, try DB lookup first; fall back to LLM-estimated macros
   const out: NutritionixFood[] = [];
   for (const it of items) {
-    const row = await findFoodRow(it.food, it.alias);
-    if (!row) continue;
-    // unit_grams on the row is the weight of 1 unit. Per-unit macros / unit_grams = per-gram.
-    // Multiply by item.grams to get the user-portion macros.
-    const perGram = row.unit_grams && row.unit_grams > 0 ? 1 / row.unit_grams : 1 / 100;
     const grams = Math.max(1, Number(it.grams) || 0);
-    out.push({
-      food_name: `${row.name} (${it.qty} ${it.unit})`,
-      serving_qty: Number(it.qty) || 1,
-      serving_unit: it.unit || "serving",
-      serving_weight_grams: grams,
-      nf_calories:           row.kcal      * perGram * grams,
-      nf_total_fat:          row.fat_g     * perGram * grams,
-      nf_total_carbohydrate: row.carbs_g   * perGram * grams,
-      nf_protein:            row.protein_g * perGram * grams,
-      nf_dietary_fiber:      row.fiber_g   * perGram * grams,
-      nf_sugars: null,
-      nf_sodium: null,
-    });
+    const qty = Number(it.qty) || 1;
+    const unit = it.unit || "serving";
+
+    const row = await findFoodRow(it.food, it.alias);
+    if (row) {
+      // DB hit — scale row macros by grams. Row unit_grams is per-1-unit weight.
+      const perGram = row.unit_grams && row.unit_grams > 0 ? 1 / row.unit_grams : 1 / 100;
+      out.push({
+        food_name: `${row.name} (${qty} ${unit})`,
+        serving_qty: qty, serving_unit: unit, serving_weight_grams: grams,
+        nf_calories:           row.kcal      * perGram * grams,
+        nf_total_fat:          row.fat_g     * perGram * grams,
+        nf_total_carbohydrate: row.carbs_g   * perGram * grams,
+        nf_protein:            row.protein_g * perGram * grams,
+        nf_dietary_fiber:      row.fiber_g   * perGram * grams,
+        nf_sugars: null, nf_sodium: null,
+      });
+    } else if (
+      it.kcal_est !== undefined && it.protein_g_est !== undefined &&
+      it.carbs_g_est !== undefined && it.fat_g_est !== undefined
+    ) {
+      // DB miss but LLM gave us estimates — use them with a clear label
+      out.push({
+        food_name: `${it.food} (${qty} ${unit}) · AI estimate`,
+        serving_qty: qty, serving_unit: unit, serving_weight_grams: grams,
+        nf_calories:           it.kcal_est,
+        nf_total_fat:          it.fat_g_est,
+        nf_total_carbohydrate: it.carbs_g_est,
+        nf_protein:            it.protein_g_est,
+        nf_dietary_fiber:      it.fiber_g_est ?? 0,
+        nf_sugars: null, nf_sodium: null,
+      });
+    }
+    // If neither: silently drop this item
   }
 
   if (out.length === 0) {
-    return { ok: false, reason: "no_match", message: "Parsed the query but no matching food in IFCT/curated seed" };
+    return { ok: false, reason: "no_match", message: "Couldn't match or estimate macros for that query" };
   }
   return { ok: true, foods: out };
 }
