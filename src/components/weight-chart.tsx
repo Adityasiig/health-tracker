@@ -64,19 +64,23 @@ export function WeightChart({
       initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
       className="glass-card p-6"
     >
-      <div className="flex items-center gap-3 mb-4">
-        <div className="w-10 h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
-          <TrendingDown className="w-5 h-5 text-emerald-500" />
+      <div className="flex items-center gap-2 sm:gap-3 mb-4 flex-wrap">
+        <div className="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-emerald-500/10 flex items-center justify-center shrink-0">
+          <TrendingDown className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-500" />
         </div>
-        <div className="flex-1">
-          <div className="font-semibold">Weight Progress</div>
-          <div className="text-xs text-[rgb(var(--fg-muted))]">Last {history.length || 0} entries</div>
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-sm sm:text-base truncate">Weight Progress</div>
+          <div className="text-[11px] sm:text-xs text-[rgb(var(--fg-muted))] truncate">
+            Last {history.length || 0} entries
+          </div>
         </div>
         {latest != null && (
-          <div className="text-right">
-            <div className="text-2xl font-bold tabular-nums">{latest.toFixed(1)} <span className="text-xs text-[rgb(var(--fg-muted))]">kg</span></div>
+          <div className="text-right shrink-0">
+            <div className="text-xl sm:text-2xl font-bold tabular-nums leading-none">
+              {latest.toFixed(1)}<span className="text-[10px] sm:text-xs text-[rgb(var(--fg-muted))] ml-1">kg</span>
+            </div>
             {delta !== 0 && (
-              <div className={`text-xs tabular-nums ${delta < 0 ? "text-emerald-500" : "text-orange-500"}`}>
+              <div className={`text-[10px] sm:text-xs tabular-nums mt-0.5 ${delta < 0 ? "text-emerald-500" : "text-orange-500"}`}>
                 {delta > 0 ? "+" : ""}{delta.toFixed(1)} kg
               </div>
             )}
@@ -84,7 +88,7 @@ export function WeightChart({
         )}
         <button
           onClick={() => setOpen(o => !o)}
-          className="ml-2 inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 px-2.5 py-1.5 text-xs font-semibold"
+          className="shrink-0 inline-flex items-center gap-1 rounded-lg bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 px-2 sm:px-2.5 py-1.5 text-xs font-semibold"
           title="Log today's weight"
         >
           <Plus className="w-3.5 h-3.5" /> Log
@@ -99,45 +103,52 @@ export function WeightChart({
             exit={{ height: 0, opacity: 0 }}
             className="overflow-hidden"
           >
-            <div className="flex items-end gap-2 mb-4 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
-              <div className="flex-1">
-                <label className="text-[10px] uppercase tracking-wider text-[rgb(var(--fg-muted))]">Weight (kg)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  inputMode="decimal"
-                  className="input mt-1"
-                  value={kg}
-                  onChange={(e) => setKg(e.target.value)}
-                  placeholder="e.g. 84.7"
-                  autoFocus
-                />
+            <div className="mb-4 p-3 rounded-xl bg-emerald-500/5 border border-emerald-500/20">
+              <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto] gap-2 sm:gap-3 sm:items-end">
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="text-[10px] uppercase tracking-wider text-[rgb(var(--fg-muted))]">Weight (kg)</label>
+                    <input
+                      type="number"
+                      step="0.1"
+                      inputMode="decimal"
+                      className="input mt-1 w-full"
+                      value={kg}
+                      onChange={(e) => setKg(e.target.value)}
+                      placeholder="e.g. 84.7"
+                      autoFocus
+                    />
+                  </div>
+                  <div>
+                    <label className="text-[10px] uppercase tracking-wider text-[rgb(var(--fg-muted))]">Date</label>
+                    <input
+                      type="date"
+                      className="input mt-1 w-full"
+                      value={date}
+                      onChange={(e) => setDate(e.target.value)}
+                      max={new Date().toISOString().slice(0, 10)}
+                    />
+                  </div>
+                </div>
+                <div className="flex gap-2 sm:gap-2">
+                  <button
+                    disabled={saving}
+                    onClick={submit}
+                    className="btn btn-primary disabled:opacity-50 flex-1 sm:flex-initial"
+                    title="Save weight"
+                  >
+                    <Check className="w-4 h-4" /> {saving ? "Saving…" : "Save"}
+                  </button>
+                  <button
+                    onClick={() => { setOpen(false); setError(""); }}
+                    className="btn btn-outline shrink-0"
+                    title="Cancel"
+                    aria-label="Cancel"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
-              <div>
-                <label className="text-[10px] uppercase tracking-wider text-[rgb(var(--fg-muted))]">Date</label>
-                <input
-                  type="date"
-                  className="input mt-1"
-                  value={date}
-                  onChange={(e) => setDate(e.target.value)}
-                  max={new Date().toISOString().slice(0, 10)}
-                />
-              </div>
-              <button
-                disabled={saving}
-                onClick={submit}
-                className="btn btn-primary disabled:opacity-50"
-                title="Save weight"
-              >
-                <Check className="w-4 h-4" /> {saving ? "Saving…" : "Save"}
-              </button>
-              <button
-                onClick={() => { setOpen(false); setError(""); }}
-                className="btn btn-outline"
-                title="Cancel"
-              >
-                <X className="w-4 h-4" />
-              </button>
             </div>
             {error && (
               <div className="text-xs text-red-500 -mt-2 mb-3 px-1">{error}</div>
