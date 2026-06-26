@@ -11,6 +11,7 @@ import {
 } from "recharts";
 import { Flame, Beef, Scale, Droplets } from "lucide-react";
 import { fmt } from "@/lib/utils";
+import { StepsHistoryChart } from "@/components/steps-history-chart";
 
 type Range = 7 | 30 | 90;
 
@@ -95,6 +96,8 @@ export default function AnalyticsPage() {
           </ResponsiveContainer>
         )}
       </ChartCard>
+
+      <StepsHistoryChart days={days} />
 
       <ChartCard icon={Scale} title="Weight" color="text-emerald-500" bg="bg-emerald-500/10">
         {weightData.length < 2 ? <Empty msg="Need at least 2 weigh-ins."/> : (

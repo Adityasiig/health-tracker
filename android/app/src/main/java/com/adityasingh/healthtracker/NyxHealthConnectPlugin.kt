@@ -7,6 +7,7 @@ import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.StepsRecord
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
+import com.getcapacitor.JSArray
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
@@ -115,6 +116,58 @@ class NyxHealthConnectPlugin : Plugin() {
                 call.resolve(resp)
             } catch (e: Exception) {
                 call.reject("Failed to read steps: ${e.message}")
+            }
+        }
+    }
+
+    /**
+     * Reads daily step totals for the past N days (inclusive of today).
+     * Returns an array ordered oldest -> newest with zero-fill for missing days.
+     *
+     * JS: const { days } = await HC.getStepsHistory({ days: 30 });
+     *     // [{ date: '2026-05-28', steps: 0 }, ..., { date: '2026-06-26', steps: 4321 }]
+     */
+    @PluginMethod
+    fun getStepsHistory(call: PluginCall) {
+        val days = (call.getInt("days") ?: 30).coerceIn(1, 365)
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val client = HealthConnectClient.getOrCreate(context)
+                val zoneId = ZoneId.systemDefault()
+                val today = LocalDate.now()
+                val start = today.minusDays((days - 1).toLong())
+                    .atStartOfDay(zoneId).toInstant()
+                val end = today.plusDays(1).atStartOfDay(zoneId).toInstant()
+
+                val response = client.readRecords(
+                    ReadRecordsRequest(
+                        recordType = StepsRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(start, end)
+                    )
+                )
+
+                // Bucket records by local date (use startTime's date)
+                val perDay = mutableMapOf<String, Long>()
+                response.records.forEach { record ->
+                    val key = record.startTime.atZone(zoneId).toLocalDate().toString()
+                    perDay[key] = (perDay[key] ?: 0L) + record.count
+                }
+
+                // Build oldest -> newest array, zero-fill missing days
+                val arr = JSArray()
+                for (i in 0 until days) {
+                    val d = today.minusDays((days - 1 - i).toLong()).toString()
+                    val item = JSObject()
+                    item.put("date", d)
+                    item.put("steps", perDay[d] ?: 0L)
+                    arr.put(item)
+                }
+                val resp = JSObject()
+                resp.put("days", arr)
+                resp.put("recordCount", response.records.size)
+                call.resolve(resp)
+            } catch (e: Exception) {
+                call.reject("Failed to read steps history: ${e.message}")
             }
         }
     }

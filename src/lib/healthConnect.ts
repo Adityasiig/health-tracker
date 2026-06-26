@@ -13,7 +13,13 @@ export interface NyxHealthConnectBridge {
   checkStepsPermission: () => Promise<{ granted: boolean }>;
   requestStepsPermission: () => Promise<{ granted: boolean }>;
   getTodaySteps: () => Promise<{ steps: number; date: string; recordCount: number }>;
+  getStepsHistory: (opts: { days: number }) => Promise<{
+    days: Array<{ date: string; steps: number }>;
+    recordCount: number;
+  }>;
 }
+
+export type StepDay = { date: string; steps: number };
 
 const NyxHealthConnect = registerPlugin<NyxHealthConnectBridge>("NyxHealthConnect");
 
@@ -62,6 +68,20 @@ export async function fetchTodaySteps(): Promise<number | null> {
   try {
     const { steps } = await NyxHealthConnect.getTodaySteps();
     return steps;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Returns daily step totals for the past N days, oldest -> newest with
+ * zero-fill for days that have no records. null = web (no HC available).
+ */
+export async function fetchStepsHistory(days: number): Promise<StepDay[] | null> {
+  if (!isNativeAndroid()) return null;
+  try {
+    const { days: arr } = await NyxHealthConnect.getStepsHistory({ days });
+    return arr;
   } catch {
     return null;
   }
