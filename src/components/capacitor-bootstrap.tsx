@@ -9,18 +9,15 @@ import { SplashScreen } from "@capacitor/splash-screen";
 /**
  * Capacitor runtime hooks for the native Android (and future iOS) shell.
  *
- * - On web (Vercel browser): isNativePlatform() returns false, this is a no-op.
- * - On Android (Capacitor WebView): the status bar is drawn TRANSPARENT and
- *   the WebView draws edge-to-edge under it (set up natively in
- *   MainActivity.java). Here we just toggle the system icon brightness so
- *   they remain readable against whatever theme the page is in.
+ * Status bar handling:
+ *   Capacitor Style.Light = LIGHT bar appearance = dark icons -> use on LIGHT bg
+ *   Capacitor Style.Dark  = DARK  bar appearance = white icons -> use on DARK  bg
  *
- * Theme -> Status bar icon style:
- *   dark  page (#0F172A)     -> Style.Light (white icons)
- *   light page (#F8FAFC)     -> Style.Dark  (dark icons)
+ *   light theme (#F8FAFC) -> Style.Light (dark icons, readable)
+ *   dark  theme (#0F172A) -> Style.Dark  (white icons, readable)
  *
- * Mounted from src/app/layout.tsx so it fires once per app boot, then
- * re-fires whenever the user toggles theme.
+ * Status bar background is forced transparent so the page bg shows through
+ * (set up natively in MainActivity.java + here as a belt-and-braces).
  */
 export function CapacitorBootstrap() {
   const { resolvedTheme } = useTheme();
@@ -36,11 +33,8 @@ export function CapacitorBootstrap() {
 
     (async () => {
       try {
-        // Light theme -> dark icons for contrast on light bg
-        // Dark  theme -> light icons for contrast on dark  bg
-        const style = resolvedTheme === "light" ? Style.Dark : Style.Light;
+        const style = resolvedTheme === "light" ? Style.Light : Style.Dark;
         await StatusBar.setStyle({ style });
-        // Force transparent so the page bg shows through (matches MainActivity)
         await StatusBar.setBackgroundColor({ color: "#00000000" });
       } catch {
         // Plugin missing on this channel -- silent
