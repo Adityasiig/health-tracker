@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -10,8 +10,15 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Health — Nutrition & Wellness Tracker",
+  title: "Health Tracker - Nutrition & Wellness",
   description: "Track your nutrition, calories, and fitness goals",
+};
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+  themeColor: "#0F172A",
 };
 
 export default function RootLayout({
