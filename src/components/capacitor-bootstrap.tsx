@@ -2,28 +2,21 @@
 
 import { useEffect } from "react";
 import { useTheme } from "next-themes";
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import { SplashScreen } from "@capacitor/splash-screen";
 
 /**
- * Capacitor runtime hooks for the native Android (and future iOS) shell.
+ * Custom Capacitor plugin defined natively in
+ * android/app/src/main/java/com/adityasingh/healthtracker/NyxStatusBarPlugin.java.
  *
- * Status bar icon tint is driven by a direct JavascriptInterface
- * (window.NyxStatusBar.setLight) exposed by MainActivity.java. We bypassed
- * @capacitor/status-bar because it doesn't reliably flip icon colour when
- * the WebView is drawing edge-to-edge under a transparent status bar.
- *
- * Theme -> system icon style:
- *   light page (#F8FAFC) -> setLight(true)  -> dark/black icons
- *   dark  page (#0F172A) -> setLight(false) -> light/white icons
+ * On Android it calls WindowInsetsControllerCompat.setAppearanceLightStatusBars
+ * directly. On web, the registerPlugin call returns a noop proxy so this
+ * silently does nothing in the browser.
  */
-declare global {
-  interface Window {
-    NyxStatusBar?: {
-      setLight: (light: boolean) => void;
-    };
-  }
+interface NyxStatusBarBridge {
+  setLight: (opts: { light: boolean }) => Promise<void>;
 }
+const NyxStatusBar = registerPlugin<NyxStatusBarBridge>("NyxStatusBar");
 
 export function CapacitorBootstrap() {
   const { resolvedTheme } = useTheme();
@@ -34,15 +27,11 @@ export function CapacitorBootstrap() {
   }, []);
 
   useEffect(() => {
+    if (!Capacitor.isNativePlatform()) return;
     if (!resolvedTheme) return;
-    if (typeof window === "undefined") return;
-    const bridge = window.NyxStatusBar;
-    if (!bridge) return; // Web mode or older APK that lacks the bridge
-    try {
-      bridge.setLight(resolvedTheme === "light");
-    } catch {
-      // never block render on a native call
-    }
+    // light theme  -> light=true  -> dark icons (visible on white)
+    // dark  theme  -> light=false -> light icons (visible on slate-900)
+    NyxStatusBar.setLight({ light: resolvedTheme === "light" }).catch(() => {});
   }, [resolvedTheme]);
 
   return null;
