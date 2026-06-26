@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Footprints } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Footprints, TrendingUp, Target, Flame } from "lucide-react";
 import { motion } from "framer-motion";
 import {
-  ResponsiveContainer, BarChart, Bar, XAxis, YAxis,
+  ResponsiveContainer, AreaChart, Area, XAxis, YAxis,
   CartesianGrid, Tooltip, ReferenceLine,
 } from "recharts";
 import {
@@ -25,15 +25,14 @@ type State =
   | { kind: "ready"; data: StepDay[] }
   | { kind: "error"; message: string };
 
-// Lightweight pretty formatter for tooltip values
 const tooltipStyle = {
   background: "rgb(var(--bg-elev))",
   border: "1px solid rgb(var(--border))",
   borderRadius: 12,
   fontSize: 12,
   boxShadow: "0 8px 24px rgb(0 0 0 / 0.25)",
+  padding: "8px 12px",
 };
-const barCursor = { fill: "rgb(var(--fg) / 0.06)", radius: 8 };
 
 export function StepsHistoryChart({ days }: { days: number }) {
   const [state, setState] = useState<State>({ kind: "loading" });
@@ -70,6 +69,16 @@ export function StepsHistoryChart({ days }: { days: number }) {
     return () => { cancelled = true; };
   }, [days]);
 
+  const stats = useMemo(() => {
+    if (state.kind !== "ready" || !state.data.length) return null;
+    const data = state.data;
+    const total = data.reduce((s, d) => s + d.steps, 0);
+    const avg = Math.round(total / data.length);
+    const best = data.reduce((m, d) => d.steps > m.steps ? d : m, data[0]);
+    const goalHit = data.filter(d => d.steps >= STEP_TARGET).length;
+    return { avg, best, goalHit, total, days: data.length };
+  }, [state]);
+
   // Web platform: hide entirely (no value to showing it in browser)
   if (state.kind === "web") return null;
 
@@ -85,17 +94,6 @@ export function StepsHistoryChart({ days }: { days: number }) {
           </div>
           <h3 className="font-semibold">Steps</h3>
         </div>
-        {state.kind === "ready" && (
-          <div className="text-xs text-[rgb(var(--fg-muted))]">
-            Avg{" "}
-            <span className="font-semibold text-[rgb(var(--fg))]">
-              {Math.round(
-                state.data.reduce((s, d) => s + d.steps, 0) / Math.max(state.data.length, 1)
-              ).toLocaleString()}
-            </span>
-            /day
-          </div>
-        )}
       </div>
 
       {state.kind === "loading" && (
@@ -125,7 +123,7 @@ export function StepsHistoryChart({ days }: { days: number }) {
         </div>
       )}
 
-      {state.kind === "ready" && (
+      {state.kind === "ready" && stats && (
         <>
           {state.data.every((d) => d.steps === 0) ? (
             <div className="h-48 flex flex-col items-center justify-center gap-1 text-sm text-[rgb(var(--fg-muted))] text-center px-6">
@@ -136,38 +134,139 @@ export function StepsHistoryChart({ days }: { days: number }) {
               </div>
             </div>
           ) : (
-            <ResponsiveContainer width="100%" height={240}>
-              <BarChart
-                data={state.data.map((d) => ({ ...d, label: d.date.slice(5) }))}
-                margin={{ top: 10, right: 20, left: 0, bottom: 0 }}
-              >
-                <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--border))" opacity={0.4} vertical={false}/>
-                <XAxis dataKey="label" stroke="rgb(var(--fg-muted))" fontSize={11} tickLine={false} axisLine={false}/>
-                <YAxis stroke="rgb(var(--fg-muted))" fontSize={11} tickLine={false} axisLine={false}
-                  tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${v}`}/>
-                <Tooltip
-                  contentStyle={tooltipStyle}
-                  cursor={barCursor}
-                  labelStyle={{ color: "rgb(var(--fg))", fontWeight: 600, marginBottom: 4 }}
-                  formatter={(v) => [`${Number(v).toLocaleString()} steps`, "Steps"]}
+            <>
+              {/* Top headline: big average number */}
+              <div className="flex items-baseline gap-2 mb-1">
+                <span className="text-3xl font-semibold tabular-nums text-[rgb(var(--fg))]">
+                  {stats.avg.toLocaleString()}
+                </span>
+                <span className="text-xs text-[rgb(var(--fg-muted))]">avg / day</span>
+              </div>
+              <div className="text-xs text-[rgb(var(--fg-muted))] mb-4">
+                {stats.total.toLocaleString()} steps over the last {stats.days} days
+              </div>
+
+              {/* Smooth area chart with gradient fill */}
+              <ResponsiveContainer width="100%" height={200}>
+                <AreaChart
+                  data={state.data.map((d) => ({ ...d, label: d.date.slice(5) }))}
+                  margin={{ top: 10, right: 12, left: 0, bottom: 0 }}
+                >
+                  <defs>
+                    <linearGradient id="stepsArea" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#10b981" stopOpacity={0.45} />
+                      <stop offset="60%" stopColor="#14b8a6" stopOpacity={0.15} />
+                      <stop offset="100%" stopColor="#10b981" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="stepsStroke" x1="0" y1="0" x2="1" y2="0">
+                      <stop offset="0%" stopColor="#10b981" />
+                      <stop offset="100%" stopColor="#14b8a6" />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="rgb(var(--border))" opacity={0.25} vertical={false}/>
+                  <XAxis
+                    dataKey="label"
+                    stroke="rgb(var(--fg-muted))"
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                    minTickGap={20}
+                  />
+                  <YAxis
+                    stroke="rgb(var(--fg-muted))"
+                    fontSize={10}
+                    tickLine={false}
+                    axisLine={false}
+                    tickFormatter={(v) => v >= 1000 ? `${(v / 1000).toFixed(0)}k` : `${v}`}
+                    width={36}
+                  />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    cursor={{ stroke: "#10b981", strokeWidth: 1, strokeDasharray: "3 3" }}
+                    labelStyle={{ color: "rgb(var(--fg))", fontWeight: 600, marginBottom: 2 }}
+                    formatter={(v) => [`${Number(v).toLocaleString()}`, "steps"]}
+                  />
+                  <ReferenceLine
+                    y={STEP_TARGET}
+                    stroke="#10b981"
+                    strokeDasharray="2 4"
+                    strokeOpacity={0.5}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="steps"
+                    stroke="url(#stepsStroke)"
+                    strokeWidth={2.5}
+                    fill="url(#stepsArea)"
+                    activeDot={{
+                      r: 5,
+                      fill: "#10b981",
+                      stroke: "rgb(var(--bg-elev))",
+                      strokeWidth: 2,
+                    }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+
+              {/* Three stat tiles below */}
+              <div className="grid grid-cols-3 gap-2 mt-4">
+                <StatTile
+                  icon={Target}
+                  label="Goal hit"
+                  value={`${stats.goalHit}/${stats.days}`}
+                  color="text-emerald-500"
+                  bg="bg-emerald-500/10"
                 />
-                <ReferenceLine
-                  y={STEP_TARGET}
-                  stroke="#10b981"
-                  strokeDasharray="4 4"
-                  label={{
-                    value: `Target ${STEP_TARGET.toLocaleString()}`,
-                    fill: "#10b981",
-                    fontSize: 10,
-                    position: "insideTopRight",
-                  }}
+                <StatTile
+                  icon={Flame}
+                  label="Best day"
+                  value={stats.best.steps.toLocaleString()}
+                  sub={stats.best.date.slice(5)}
+                  color="text-orange-500"
+                  bg="bg-orange-500/10"
                 />
-                <Bar dataKey="steps" fill="#10b981" radius={[8, 8, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+                <StatTile
+                  icon={TrendingUp}
+                  label="Target"
+                  value={`${STEP_TARGET.toLocaleString()}`}
+                  color="text-blue-500"
+                  bg="bg-blue-500/10"
+                />
+              </div>
+            </>
           )}
         </>
       )}
     </motion.section>
+  );
+}
+
+function StatTile({
+  icon: Icon, label, value, sub, color, bg,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  label: string;
+  value: string;
+  sub?: string;
+  color: string;
+  bg: string;
+}) {
+  return (
+    <div className="rounded-xl border border-[rgb(var(--border)/0.6)] bg-[rgb(var(--bg-elev)/0.5)] p-3">
+      <div className="flex items-center gap-1.5 mb-1">
+        <div className={`w-5 h-5 rounded-md ${bg} flex items-center justify-center`}>
+          <Icon className={`w-3 h-3 ${color}`} />
+        </div>
+        <span className="text-[10px] uppercase tracking-wider text-[rgb(var(--fg-muted))] font-medium">
+          {label}
+        </span>
+      </div>
+      <div className="text-sm font-semibold tabular-nums text-[rgb(var(--fg))]">
+        {value}
+      </div>
+      {sub && (
+        <div className="text-[10px] text-[rgb(var(--fg-muted))] mt-0.5">{sub}</div>
+      )}
+    </div>
   );
 }
