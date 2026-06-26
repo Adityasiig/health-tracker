@@ -10,8 +10,8 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
  */
 export interface NyxHealthConnectBridge {
   isAvailable: () => Promise<{ available: boolean; status: number }>;
-  hasPermissions: () => Promise<{ granted: boolean }>;
-  requestPermissions: () => Promise<{ granted: boolean }>;
+  checkStepsPermission: () => Promise<{ granted: boolean }>;
+  requestStepsPermission: () => Promise<{ granted: boolean }>;
   getTodaySteps: () => Promise<{ steps: number; date: string; recordCount: number }>;
 }
 
@@ -40,7 +40,7 @@ export async function healthConnectStatus(): Promise<{
 export async function hasStepsPermission(): Promise<boolean> {
   if (!isNativeAndroid()) return false;
   try {
-    const { granted } = await NyxHealthConnect.hasPermissions();
+    const { granted } = await NyxHealthConnect.checkStepsPermission();
     return granted;
   } catch {
     return false;
@@ -50,7 +50,7 @@ export async function hasStepsPermission(): Promise<boolean> {
 export async function requestStepsPermission(): Promise<boolean> {
   if (!isNativeAndroid()) return false;
   try {
-    const { granted } = await NyxHealthConnect.requestPermissions();
+    const { granted } = await NyxHealthConnect.requestStepsPermission();
     return granted;
   } catch {
     return false;

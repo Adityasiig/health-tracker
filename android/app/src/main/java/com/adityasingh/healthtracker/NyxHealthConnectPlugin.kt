@@ -48,7 +48,7 @@ class NyxHealthConnectPlugin : Plugin() {
 
     /** Reports whether READ_STEPS has already been granted. */
     @PluginMethod
-    fun hasPermissions(call: PluginCall) {
+    fun checkStepsPermission(call: PluginCall) {
         CoroutineScope(Dispatchers.IO).launch {
             try {
                 val client = HealthConnectClient.getOrCreate(context)
@@ -64,7 +64,7 @@ class NyxHealthConnectPlugin : Plugin() {
 
     /** Launches the Health Connect permission rationale screen. */
     @PluginMethod
-    fun requestPermissions(call: PluginCall) {
+    fun requestStepsPermission(call: PluginCall) {
         try {
             val contract = PermissionController.createRequestPermissionResultContract()
             val intent = contract.createIntent(context, permissions)

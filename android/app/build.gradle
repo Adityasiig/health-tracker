@@ -24,15 +24,15 @@ android {
     }
     compileOptions {
         // Java 17 source/target -- required by AGP 8.x and modern AndroidX libs.
-        sourceCompatibility JavaVersion.VERSION_17
-        targetCompatibility JavaVersion.VERSION_17
+        sourceCompatibility JavaVersion.VERSION_21
+        targetCompatibility JavaVersion.VERSION_21
         // Phase 3 (Health Connect) uses java.time / java.util.Optional APIs
         // that desugar covers down to API 26. We're on minSdk 29 already
         // so this is belt-and-braces but still recommended.
         coreLibraryDesugaringEnabled true
     }
     kotlinOptions {
-        jvmTarget = "17"
+        jvmTarget = "21"
     }
 }
 
