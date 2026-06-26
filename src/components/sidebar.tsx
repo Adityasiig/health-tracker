@@ -52,6 +52,10 @@ export function Sidebar({
               initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }}
               transition={{ type: "spring", damping: 30, stiffness: 300 }}
               className="lg:hidden fixed top-0 left-0 bottom-0 z-50 w-[78%] max-w-[320px] bg-[rgb(var(--bg-elev))] border-r border-[rgb(var(--border))] flex flex-col shadow-2xl shadow-black/40"
+              style={{
+                paddingTop: "env(safe-area-inset-top, 0)",
+                paddingBottom: "env(safe-area-inset-bottom, 0)",
+              }}
             >
               <SidebarContent
                 pathname={pathname}
