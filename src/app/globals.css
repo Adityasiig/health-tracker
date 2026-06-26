@@ -32,14 +32,39 @@ html, body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Kill the white/grey flash that Android WebView paints on tap */
-* {
-  -webkit-tap-highlight-color: transparent;
+/* ============================================================
+ * Kill EVERY white border / glow that Android WebView paints
+ * on tap, hover, or focus. Aggressive on purpose.
+ * ============================================================ */
+*, *::before, *::after {
+  -webkit-tap-highlight-color: transparent !important;
 }
-button, a, [role="button"] {
-  -webkit-tap-highlight-color: transparent;
+*:focus {
+  outline: none !important;
+}
+*:focus-visible {
+  outline: none !important;
+}
+button, a, [role="button"], [tabindex], summary {
+  -webkit-tap-highlight-color: transparent !important;
   -webkit-touch-callout: none;
+  outline: none !important;
 }
+button:focus, a:focus, [role="button"]:focus, [tabindex]:focus {
+  outline: none !important;
+  box-shadow: none !important;
+}
+/* Recharts wraps charts in focusable divs/SVGs that WebView highlights
+ * on tap with a white box. Nuke it everywhere chart-related. */
+.recharts-wrapper, .recharts-surface, .recharts-wrapper *,
+svg, svg * {
+  outline: none !important;
+}
+.recharts-wrapper, .recharts-responsive-container {
+  -webkit-tap-highlight-color: transparent !important;
+}
+/* Keep the input focus ring — that one's intentional */
+.input:focus { outline: none !important; }
 
 @layer components {
   .glass-card {

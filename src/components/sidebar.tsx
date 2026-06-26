@@ -33,7 +33,7 @@ export function Sidebar({
     <>
       {/* Desktop sidebar — always visible on ≥ lg */}
       <aside className="hidden lg:flex w-64 shrink-0 border-r border-[rgb(var(--border))] bg-[rgb(var(--bg-elev))] flex-col">
-        <SidebarContent pathname={pathname} onItemClick={() => {}} />
+        <SidebarContent pathname={pathname} onItemClick={() => {}} showClose={false} onClose={() => {}} />
       </aside>
 
       {/* Mobile drawer — slides in from the left when mobileOpen */}
@@ -45,22 +45,20 @@ export function Sidebar({
               initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
               transition={{ duration: 0.2 }}
               onClick={onCloseMobile}
-              className="lg:hidden fixed inset-0 z-40 bg-black/50 backdrop-blur-sm"
+              className="lg:hidden fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
             />
             {/* Drawer */}
             <motion.aside
               initial={{ x: "-100%" }} animate={{ x: 0 }} exit={{ x: "-100%" }}
-              transition={{ type: "spring", damping: 28, stiffness: 280 }}
-              className="lg:hidden fixed top-0 left-0 bottom-0 z-50 w-72 max-w-[80vw] bg-[rgb(var(--bg-elev))] border-r border-[rgb(var(--border))] flex flex-col"
+              transition={{ type: "spring", damping: 30, stiffness: 300 }}
+              className="lg:hidden fixed top-0 left-0 bottom-0 z-50 w-[78%] max-w-[320px] bg-[rgb(var(--bg-elev))] border-r border-[rgb(var(--border))] flex flex-col shadow-2xl shadow-black/40"
             >
-              <button
-                onClick={onCloseMobile}
-                className="absolute top-4 right-4 p-1.5 rounded-lg hover:bg-[rgb(var(--border))]/40"
-                aria-label="Close menu"
-              >
-                <X className="w-5 h-5" />
-              </button>
-              <SidebarContent pathname={pathname} onItemClick={onCloseMobile ?? (() => {})} />
+              <SidebarContent
+                pathname={pathname}
+                onItemClick={onCloseMobile ?? (() => {})}
+                showClose={true}
+                onClose={onCloseMobile ?? (() => {})}
+              />
             </motion.aside>
           </>
         )}
@@ -70,46 +68,78 @@ export function Sidebar({
 }
 
 function SidebarContent({
-  pathname, onItemClick,
+  pathname, onItemClick, showClose, onClose,
 }: {
-  pathname: string; onItemClick: () => void;
+  pathname: string; onItemClick: () => void; showClose: boolean; onClose: () => void;
 }) {
   return (
     <>
-      <div className="p-6 flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl gradient-bg flex items-center justify-center shadow-lg shadow-emerald-500/20">
-          <Activity className="w-5 h-5 text-white" strokeWidth={2.5} />
+      {/* Header */}
+      <div className="px-5 pt-5 pb-4 flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl gradient-bg flex items-center justify-center shadow-lg shadow-emerald-500/25">
+            <Activity className="w-5 h-5 text-white" strokeWidth={2.5} />
+          </div>
+          <div>
+            <div className="font-bold text-lg leading-none gradient-text">Health</div>
+            <div className="text-[11px] text-[rgb(var(--fg-muted))] mt-1 tracking-wide">
+              Nutrition Tracker
+            </div>
+          </div>
         </div>
-        <div>
-          <div className="font-bold text-lg leading-none gradient-text">Health</div>
-          <div className="text-xs text-[rgb(var(--fg-muted))] mt-0.5">Nutrition Tracker</div>
-        </div>
+        {showClose && (
+          <button
+            onClick={onClose}
+            className="p-2 -mr-1 rounded-lg text-[rgb(var(--fg-muted))] active:bg-[rgb(var(--border))]/30"
+            aria-label="Close menu"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        )}
       </div>
 
-      <nav className="flex-1 px-3 pb-6 space-y-1 overflow-y-auto">
-        {NAV.map((item) => {
-          const Icon = item.icon;
-          const active = pathname === item.href;
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={onItemClick}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
-                active
-                  ? "bg-gradient-to-r from-emerald-500/10 to-teal-500/10 text-emerald-600 dark:text-emerald-400"
-                  : "text-[rgb(var(--fg-muted))] hover:bg-[rgb(var(--border))]/40 hover:text-[rgb(var(--fg))]"
-              )}
-            >
-              <Icon className="w-4 h-4" strokeWidth={active ? 2.5 : 2} />
-              <span>{item.label}</span>
-            </Link>
-          );
-        })}
+      {/* Faint divider */}
+      <div className="mx-5 h-px bg-gradient-to-r from-transparent via-[rgb(var(--border))] to-transparent" />
+
+      {/* Nav */}
+      <nav className="flex-1 px-3 pt-4 pb-4 overflow-y-auto">
+        <div className="px-2 mb-2 text-[10px] uppercase tracking-[0.12em] text-[rgb(var(--fg-muted))]/80 font-semibold">
+          Menu
+        </div>
+        <div className="space-y-1">
+          {NAV.map((item) => {
+            const Icon = item.icon;
+            const active = pathname === item.href;
+            return (
+              <Link
+                key={item.href}
+                href={item.href}
+                onClick={onItemClick}
+                className={cn(
+                  "relative flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all",
+                  active
+                    ? "bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-transparent text-emerald-600 dark:text-emerald-400"
+                    : "text-[rgb(var(--fg-muted))] active:bg-[rgb(var(--border))]/30"
+                )}
+              >
+                {/* Active left accent rail */}
+                {active && (
+                  <motion.span
+                    layoutId="nav-rail"
+                    className="absolute left-0 top-1/2 -translate-y-1/2 h-6 w-[3px] rounded-r-full bg-gradient-to-b from-emerald-400 to-teal-500"
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
+                )}
+                <Icon className="w-[18px] h-[18px] shrink-0" strokeWidth={active ? 2.5 : 2} />
+                <span>{item.label}</span>
+              </Link>
+            );
+          })}
+        </div>
       </nav>
 
-      <div className="p-4 border-t border-[rgb(var(--border))] space-y-3">
+      {/* Footer — combined account + branding */}
+      <div className="px-4 pt-3 pb-4 border-t border-[rgb(var(--border))]/60 space-y-3">
         <UserMenu />
         <div className="flex justify-center">
           <BuiltBy />
