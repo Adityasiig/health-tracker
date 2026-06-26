@@ -1,7 +1,6 @@
 "use client";
 
 import { useApiSWR } from "@/lib/use-api-swr";
-// import {} from "@/lib/api";
 import type {
   ProfileResponse, DayLog, WaterToday, TrendsData,
 } from "@/lib/api";
@@ -10,6 +9,7 @@ import { MacroCard } from "@/components/macro-card";
 import { WaterTracker } from "@/components/water-tracker";
 import { WeightChart } from "@/components/weight-chart";
 import { WelcomeCard } from "@/components/welcome-card";
+import { StepsCard } from "@/components/steps-card";
 import { motion } from "framer-motion";
 
 export default function Dashboard() {
@@ -24,7 +24,7 @@ export default function Dashboard() {
   if (pData && !profile) {
     return (
       <div className="glass-card p-8 text-center">
-        <h2 className="text-xl font-semibold mb-2">Welcome 👋</h2>
+        <h2 className="text-xl font-semibold mb-2">Welcome</h2>
         <p className="text-[rgb(var(--fg-muted))] mb-4">
           Set up your profile to start tracking.
         </p>
@@ -62,6 +62,9 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {/* Steps card -- native Health Connect, only renders on Android */}
+      <StepsCard />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <WaterTracker
           currentMl={water.total_ml}
@@ -90,6 +93,7 @@ function DashboardSkeleton() {
           ))}
         </div>
       </div>
+      <div className="glass-card h-32" />
       <div className="grid lg:grid-cols-2 gap-6">
         <div className="glass-card h-64" />
         <div className="glass-card h-64" />

@@ -1,8 +1,8 @@
 ext {
     // Aditya 2026-06-25 directive: 'atleast Android 10+'
     minSdkVersion = 29        // Android 10 (Q, 2019) — floor
-    compileSdkVersion = 35    // Android 15
-    targetSdkVersion = 35     // Android 15 — Play Store 2026 mandate
+    compileSdkVersion = 36    // Android 16 (only platform installed locally)
+    targetSdkVersion = 36     // Android 16 — satisfies Play Store ≥35 mandate
     androidxActivityVersion = '1.9.2'
     androidxAppCompatVersion = '1.7.0'
     androidxCoordinatorLayoutVersion = '1.2.0'

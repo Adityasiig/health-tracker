@@ -1,4 +1,5 @@
 apply plugin: 'com.android.application'
+apply plugin: 'kotlin-android'
 
 android {
     namespace "com.adityasingh.healthtracker"
@@ -12,8 +13,7 @@ android {
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
-             // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
-            ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
+             ignoreAssetsPattern '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
     buildTypes {
@@ -23,13 +23,16 @@ android {
         }
     }
     compileOptions {
-        // Java 17 source/target — required by AGP 8.x and modern AndroidX libs.
+        // Java 17 source/target -- required by AGP 8.x and modern AndroidX libs.
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
         // Phase 3 (Health Connect) uses java.time / java.util.Optional APIs
         // that desugar covers down to API 26. We're on minSdk 29 already
-        // so this is belt-and-braces — still recommended.
+        // so this is belt-and-braces but still recommended.
         coreLibraryDesugaringEnabled true
+    }
+    kotlinOptions {
+        jvmTarget = "17"
     }
 }
 
@@ -49,7 +52,16 @@ dependencies {
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
     implementation project(':capacitor-cordova-android-plugins')
-    // Core library desugaring runtime — must match coreLibraryDesugaringEnabled.
+
+    // Kotlin standard library
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8:$kotlin_version"
+    // Kotlin coroutines for Android (needed for Health Connect suspend funcs)
+    implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.7.3'
+
+    // Health Connect client (1.1.0-alpha10 is the most-stable alpha at time of integration)
+    implementation 'androidx.health.connect:connect-client:1.1.0-alpha10'
+
+    // Core library desugaring runtime -- must match coreLibraryDesugaringEnabled.
     coreLibraryDesugaring 'com.android.tools:desugar_jdk_libs:2.1.5'
 }
 

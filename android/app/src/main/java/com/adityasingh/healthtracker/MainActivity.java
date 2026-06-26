@@ -8,9 +8,10 @@ import com.getcapacitor.BridgeActivity;
 public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
-        // Register our custom Capacitor plugin BEFORE super.onCreate so the
-        // bridge knows about it when the WebView is initialised.
+        // Register custom Capacitor plugins BEFORE super.onCreate so the
+        // bridge knows about them when the WebView is initialised.
         registerPlugin(NyxStatusBarPlugin.class);
+        registerPlugin(NyxHealthConnectPlugin.class);
 
         super.onCreate(savedInstanceState);
 
@@ -19,8 +20,8 @@ public class MainActivity extends BridgeActivity {
         // Transparent status bar -- page content shows through
         getWindow().setStatusBarColor(Color.TRANSPARENT);
         getWindow().setNavigationBarColor(Color.TRANSPARENT);
-        // Default to white icons (dark theme is boot default). NyxStatusBar
-        // plugin flips this once the React theme resolves.
+        // Default to white icons; NyxStatusBar plugin flips this once the
+        // React theme resolves.
         WindowCompat.getInsetsController(getWindow(), getWindow().getDecorView())
             .setAppearanceLightStatusBars(false);
     }
