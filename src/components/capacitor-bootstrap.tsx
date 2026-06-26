@@ -3,22 +3,28 @@
 import { useEffect } from "react";
 import { useTheme } from "next-themes";
 import { Capacitor } from "@capacitor/core";
-import { StatusBar, Style } from "@capacitor/status-bar";
 import { SplashScreen } from "@capacitor/splash-screen";
 
 /**
  * Capacitor runtime hooks for the native Android (and future iOS) shell.
  *
- * Status bar handling:
- *   Capacitor Style.Light = LIGHT bar appearance = dark icons -> use on LIGHT bg
- *   Capacitor Style.Dark  = DARK  bar appearance = white icons -> use on DARK  bg
+ * Status bar icon tint is driven by a direct JavascriptInterface
+ * (window.NyxStatusBar.setLight) exposed by MainActivity.java. We bypassed
+ * @capacitor/status-bar because it doesn't reliably flip icon colour when
+ * the WebView is drawing edge-to-edge under a transparent status bar.
  *
- *   light theme (#F8FAFC) -> Style.Light (dark icons, readable)
- *   dark  theme (#0F172A) -> Style.Dark  (white icons, readable)
- *
- * Status bar background is forced transparent so the page bg shows through
- * (set up natively in MainActivity.java + here as a belt-and-braces).
+ * Theme -> system icon style:
+ *   light page (#F8FAFC) -> setLight(true)  -> dark/black icons
+ *   dark  page (#0F172A) -> setLight(false) -> light/white icons
  */
+declare global {
+  interface Window {
+    NyxStatusBar?: {
+      setLight: (light: boolean) => void;
+    };
+  }
+}
+
 export function CapacitorBootstrap() {
   const { resolvedTheme } = useTheme();
 
@@ -28,18 +34,15 @@ export function CapacitorBootstrap() {
   }, []);
 
   useEffect(() => {
-    if (!Capacitor.isNativePlatform()) return;
     if (!resolvedTheme) return;
-
-    (async () => {
-      try {
-        const style = resolvedTheme === "light" ? Style.Light : Style.Dark;
-        await StatusBar.setStyle({ style });
-        await StatusBar.setBackgroundColor({ color: "#00000000" });
-      } catch {
-        // Plugin missing on this channel -- silent
-      }
-    })();
+    if (typeof window === "undefined") return;
+    const bridge = window.NyxStatusBar;
+    if (!bridge) return; // Web mode or older APK that lacks the bridge
+    try {
+      bridge.setLight(resolvedTheme === "light");
+    } catch {
+      // never block render on a native call
+    }
   }, [resolvedTheme]);
 
   return null;
