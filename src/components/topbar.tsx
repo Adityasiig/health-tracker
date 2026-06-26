@@ -10,8 +10,11 @@ export function TopBar({ onMenuClick }: { onMenuClick?: () => void }) {
   useEffect(() => setMounted(true), []);
 
   return (
-    <header className="sticky top-0 z-30 backdrop-blur-md bg-[rgb(var(--bg))]/70 border-b border-[rgb(var(--border))]/60">
-      <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 h-16">
+    <header
+      className="sticky top-0 z-30 backdrop-blur-md bg-[rgb(var(--bg))]/70 border-b border-[rgb(var(--border))]/60"
+      style={{ paddingTop: "env(safe-area-inset-top, 0)" }}
+    >
+      <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 h-12 lg:h-16">
         <button
           onClick={onMenuClick}
           className="lg:hidden btn btn-ghost p-2"
